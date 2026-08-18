@@ -1,0 +1,66 @@
+# Fast test configuration for MicroWear-PINN
+
+domain:
+  L: 1.0
+  D: 0.5
+  T: 1.0
+
+physics:
+  mu: 0.3
+  v_rel: 1.0
+  E_star: 200.0
+  R: 5.0
+  P_load: 10.0
+
+model:
+  device: "cpu"
+  k_w:
+    use_rff: true
+    rff_scale: 2.0
+    rff_features: 16
+    layers: [32, 32]
+    activation: "tanh"
+  h:
+    use_rff: true
+    rff_scale: 4.0
+    rff_features: 32
+    layers: [32, 32]
+    activation: "tanh"
+  phi:
+    use_rff: true
+    rff_scale: 2.0
+    rff_features: 32
+    layers: [32, 32, 32]
+    activation: "tanh"
+
+sampling:
+  method: "sobol"
+  n_interior: 1000
+  n_boundary: 200
+  n_initial: 100
+  n_data: 50
+
+training:
+  epochs_adam: 100
+  epochs_lbfgs: 10
+  lr_adam: 0.001
+  lr_lbfgs: 0.1
+  weight_decay: 1.0e-5
+  
+  loss_weights:
+    wear: 1.0
+    biharmonic: 0.1
+    bc: 1.0
+    data: 10.0
+    reg: 1.0e-6
+
+  adaptive_weighting:
+    enabled: true
+    method: "softadapt"
+    beta: -0.1
+    update_every: 5
+
+benchmark:
+  type: "sinusoidal"
+  noise_level: 0.01
+  save_dir: "results"
