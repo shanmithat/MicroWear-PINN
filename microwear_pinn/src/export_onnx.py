@@ -82,6 +82,18 @@ def export_and_validate(config: dict, checkpoint_path: str, onnx_path: str) -> b
     )
     print("ONNX model exported successfully.")
     
+    # Inline any external weights to ensure it's fully self-contained for browser execution
+    import onnx
+    print("Embedding weights into self-contained ONNX model (inlining external data)...")
+    onnx_model = onnx.load(onnx_path)
+    onnx.save(onnx_model, onnx_path)
+    
+    # Remove the .data file if it was created
+    ext_data_path = onnx_path + ".data"
+    if os.path.exists(ext_data_path):
+        os.remove(ext_data_path)
+        print(f"Removed external data file: {ext_data_path}")
+    
     # --- Parity Verification ---
     print("Running numerical parity validation (PyTorch vs ONNX Runtime)...")
     

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MicroWear-PINN: Interactive Tool Wear Dashboard</title>
+    <title>MicroWear-PINN: Tool Wear Digital Twin</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Plotly.js -->
@@ -11,175 +11,234 @@
     <!-- ONNX Runtime Web -->
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <style>
-        .slider-label {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 0.25rem;
+        /* Dark range slider styling */
+        input[type="range"]::-webkit-slider-runnable-track {
+            background: #334155;
+            border-radius: 0.5rem;
+            height: 0.5rem;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            background: #3b82f6;
+            margin-top: -0.25rem;
         }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen font-sans">
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
 
-    <!-- Header -->
-    <header class="bg-slate-900 text-white shadow-md py-4 px-6">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <span class="text-2xl font-extrabold tracking-wider bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">MicroWear-PINN</span>
-                <span class="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded border border-blue-500/30">Calibrated Surrogate</span>
+    <!-- Header Section -->
+    <header class="bg-slate-900 border-b border-slate-800 py-5 px-6 shadow-xl">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-center md:text-left">
+                <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                    MicroWear-PINN
+                </h1>
+                <p class="text-xs text-slate-400 mt-1 font-semibold uppercase tracking-wider">
+                    Physics-Informed Neural Network • Shop-Floor Digital Twin
+                </p>
             </div>
-            <p class="text-sm text-gray-400 mt-2 md:mt-0 font-medium">NASA Prognostics Milling Dataset Calibration Dashboard</p>
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full">
+                    NASA Milling Calibration Engine
+                </span>
+                <span class="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1.5 rounded-full">
+                    WASM ONNX-Runtime v1.29
+                </span>
+            </div>
         </div>
     </header>
 
-    <!-- Main Content Container -->
+    <!-- Main Workspace -->
     <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
 
-        <!-- Banner / Status -->
-        <div id="model-status-banner" class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded shadow-sm flex items-center justify-between">
+        <!-- WASM Model Status Banner -->
+        <div id="model-status-banner" class="bg-slate-900 border-l-4 border-amber-500 p-4 rounded-lg shadow-md flex items-center justify-between border border-slate-800">
             <div class="flex items-center space-x-3">
                 <svg class="h-6 w-6 text-amber-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span class="text-sm font-medium text-amber-800" id="status-text">Downloading and initializing WebAssembly ONNX Model...</span>
+                <span class="text-sm font-semibold text-amber-200" id="status-text">Downloading and initializing WebAssembly ONNX Model...</span>
             </div>
-            <span class="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded font-bold uppercase tracking-wider">Loading</span>
+            <span class="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded font-bold uppercase tracking-wider">Loading</span>
         </div>
 
         <!-- Grid Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            <!-- Sidebar Controls -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-6">
-                <div class="border-b border-gray-100 pb-3">
-                    <h2 class="text-lg font-bold text-gray-800">Operational Controls</h2>
-                    <p class="text-xs text-gray-500">Configure cutting conditions and material presets</p>
-                </div>
-
-                <!-- Presets -->
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">Calibration Presets</label>
-                    <select id="case-preset" class="w-full rounded-lg border-gray-300 border bg-white p-2.5 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                        <option value="1">Case 1: v = 200 m/min, f = 0.50 mm (Cast Iron)</option>
-                        <option value="4">Case 4: v = 200 m/min, f = 0.25 mm (Cast Iron)</option>
-                        <option value="7">Case 7: v = 200 m/min, f = 0.25 mm (Steel)</option>
-                        <option value="9">Case 9: v = 250 m/min, f = 0.50 mm (Cast Iron)</option>
-                        <option value="11">Case 11: v = 250 m/min, f = 0.25 mm (Cast Iron)</option>
-                        <option value="13">Case 13: v = 250 m/min, f = 0.25 mm (Steel)</option>
-                        <option value="custom" selected>--- Custom Configuration ---</option>
-                    </select>
-                </div>
-
-                <!-- Parameters Sliders -->
-                <div class="space-y-5">
+            <!-- Operational Control Sidebar -->
+            <div class="space-y-6">
+                
+                <!-- Card 1: Industrial Scale & Presets -->
+                <div class="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-5 space-y-5">
                     <div>
-                        <div class="slider-label">
-                            <span>Spindle Speed (N)</span>
-                            <span id="val-rpm" class="font-bold text-blue-600">800 RPM</span>
-                        </div>
-                        <input id="slider-rpm" type="range" min="300" max="1500" value="800" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <h2 class="text-lg font-bold text-slate-100">Facility Configuration</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Customise the twin for your shop floor scale</p>
                     </div>
 
-                    <div>
-                        <div class="slider-label">
-                            <span>Feed Rate (f)</span>
-                            <span id="val-feed" class="font-bold text-blue-600">0.25 mm/rev</span>
-                        </div>
-                        <input id="slider-feed" type="range" min="0.1" max="0.5" step="0.01" value="0.25" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                    </div>
-
-                    <div>
-                        <div class="slider-label">
-                            <span>Depth of Cut (a<sub>p</sub>)</span>
-                            <span id="val-doc" class="font-bold text-blue-600">1.5 mm</span>
-                        </div>
-                        <input id="slider-doc" type="range" min="0.5" max="3.0" step="0.1" value="1.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                    </div>
-                </div>
-
-                <!-- Workpiece Material Presets -->
-                <div class="space-y-3">
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">Material Preset</label>
-                    <div class="grid grid-cols-1 gap-2">
-                        <label class="flex items-center space-x-3 p-2.5 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                            <input type="radio" name="material-group" value="steel" checked class="text-blue-600 focus:ring-blue-500">
-                            <div>
-                                <span class="text-sm font-semibold text-gray-800">Structural Steel</span>
-                                <span class="block text-xs text-gray-500">K<sub>s</sub> = 2000 MPa, mu = 0.3</span>
-                            </div>
-                        </label>
-                        <label class="flex items-center space-x-3 p-2.5 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                            <input type="radio" name="material-group" value="titanium" class="text-blue-600 focus:ring-blue-500">
-                            <div>
-                                <span class="text-sm font-semibold text-gray-800">Titanium Alloy (Ti-6Al-4V)</span>
-                                <span class="block text-xs text-gray-500">K<sub>s</sub> = 3000 MPa, mu = 0.4</span>
-                            </div>
-                        </label>
-                        <label class="flex items-center space-x-3 p-2.5 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                            <input type="radio" name="material-group" value="inconel" class="text-blue-600 focus:ring-blue-500">
-                            <div>
-                                <span class="text-sm font-semibold text-gray-800">Inconel 718 Superalloy</span>
-                                <span class="block text-xs text-gray-500">K<sub>s</sub> = 4500 MPa, mu = 0.5</span>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Computed Constants Info Panel -->
-                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-gray-500 font-medium">Relative Speed (v<sub>rel</sub>):</span>
-                        <span id="info-vrel" class="font-bold text-gray-800">0.0 mm/s</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-500 font-medium">Resultant Force (F<sub>r</sub>):</span>
-                        <span id="info-force" class="font-bold text-gray-800">0.0 N</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Visualization Suite (Plots & Gauges) -->
-            <div class="col-span-2 space-y-6">
-
-                <!-- Summary Health & RUL Row -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Remaining Useful Life (RUL)</h3>
-                            <p id="rul-text" class="text-3xl font-extrabold text-slate-800 mt-2">-- mins</p>
-                        </div>
-                        <div class="mt-4">
-                            <div class="w-full bg-gray-200 rounded-full h-2.5">
-                                <div id="rul-progress" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
-                            </div>
-                            <span class="text-[10px] text-gray-500 block mt-1">Based on ISO flank wear failure threshold (VB &ge; 0.3mm)</span>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Tool Health Status</h3>
-                            <p id="health-status" class="text-2xl font-extrabold text-emerald-600 mt-2">HEALTHY</p>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2 leading-relaxed">
-                            Maximum estimated wear rate: <span id="info-wear-rate" class="font-bold">0.0</span> nm/s.
+                    <!-- Industrial Setup Setup Dropdown -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Industrial Setup Scale</label>
+                        <select id="industrial-scale" class="w-full rounded-lg border-slate-700 border bg-slate-950 p-2.5 text-sm text-slate-200 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            <option value="large">Large-Scale Aero/Auto (Strict: Limit = 0.25mm)</option>
+                            <option value="medium" selected>Medium-Scale Production (Standard: Limit = 0.30mm)</option>
+                            <option value="small">Small-Scale Prototype Shop (Lenient: Limit = 0.40mm)</option>
+                        </select>
+                        <p id="scale-desc" class="text-[11px] text-slate-400 leading-normal mt-1">
+                            Optimised for standard batch production and tool asset life maximization.
                         </p>
                     </div>
+
+                    <!-- Calibration Presets -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">NASA Ingestion Presets</label>
+                        <select id="case-preset" class="w-full rounded-lg border-slate-700 border bg-slate-950 p-2.5 text-sm text-slate-200 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            <option value="1">Case 1: v = 200 m/min, f = 0.50 mm (Cast Iron)</option>
+                            <option value="4">Case 4: v = 200 m/min, f = 0.25 mm (Cast Iron)</option>
+                            <option value="7">Case 7: v = 200 m/min, f = 0.25 mm (Steel)</option>
+                            <option value="9">Case 9: v = 250 m/min, f = 0.50 mm (Cast Iron)</option>
+                            <option value="11">Case 11: v = 250 m/min, f = 0.25 mm (Cast Iron)</option>
+                            <option value="13">Case 13: v = 250 m/min, f = 0.25 mm (Steel)</option>
+                            <option value="custom" selected>--- Custom Configuration ---</option>
+                        </select>
+                    </div>
                 </div>
 
-                <!-- Plotly Line Chart for Flank Wear -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                    <h3 class="text-sm font-bold text-gray-800 mb-2 px-2">Flank Wear Land (VB) Evolution</h3>
-                    <div id="plot-wear-curve" style="height: 320px;"></div>
+                <!-- Card 2: Workshop Parameters Sliders -->
+                <div class="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-5 space-y-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-100">Machining Parameters</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Adjust physical cutting controls in real-time</p>
+                    </div>
+
+                    <div class="space-y-5">
+                        <!-- Spindle Speed -->
+                        <div>
+                            <div class="flex justify-between font-medium text-xs mb-1">
+                                <span class="text-slate-300">Spindle Speed (N)</span>
+                                <span id="val-rpm" class="font-bold text-blue-400">800 RPM</span>
+                            </div>
+                            <input id="slider-rpm" type="range" min="300" max="1500" value="800" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <!-- Feed Rate -->
+                        <div>
+                            <div class="flex justify-between font-medium text-xs mb-1">
+                                <span class="text-slate-300">Feed Rate (f)</span>
+                                <span id="val-feed" class="font-bold text-blue-400">0.25 mm/rev</span>
+                            </div>
+                            <input id="slider-feed" type="range" min="0.1" max="0.5" step="0.01" value="0.25" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <!-- DOC -->
+                        <div>
+                            <div class="flex justify-between font-medium text-xs mb-1">
+                                <span class="text-slate-300">Depth of Cut (a<sub>p</sub>)</span>
+                                <span id="val-doc" class="font-bold text-blue-400">1.5 mm</span>
+                            </div>
+                            <input id="slider-doc" type="range" min="0.5" max="3.0" step="0.1" value="1.5" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                    </div>
+
+                    <!-- Workpiece Selection -->
+                    <div class="space-y-3 pt-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Workpiece Material</label>
+                        <div class="grid grid-cols-1 gap-2">
+                            <label class="flex items-center space-x-3 p-3 border border-slate-800 bg-slate-950/40 rounded-lg cursor-pointer hover:bg-slate-800/40 transition">
+                                <input type="radio" name="material-group" value="steel" checked class="text-blue-500 focus:ring-blue-500">
+                                <div>
+                                    <span class="text-sm font-semibold text-slate-200">Structural Steel</span>
+                                    <span class="block text-[10px] text-slate-400">Ks = 2000 MPa, friction &mu; = 0.3</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-3 border border-slate-800 bg-slate-950/40 rounded-lg cursor-pointer hover:bg-slate-800/40 transition">
+                                <input type="radio" name="material-group" value="titanium" class="text-blue-500 focus:ring-blue-500">
+                                <div>
+                                    <span class="text-sm font-semibold text-slate-200">Titanium Alloy (Ti-6Al-4V)</span>
+                                    <span class="block text-[10px] text-slate-400">Ks = 3000 MPa, friction &mu; = 0.4</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-3 border border-slate-800 bg-slate-950/40 rounded-lg cursor-pointer hover:bg-slate-800/40 transition">
+                                <input type="radio" name="material-group" value="inconel" class="text-blue-500 focus:ring-blue-500">
+                                <div>
+                                    <span class="text-sm font-semibold text-slate-200">Inconel 718 Superalloy</span>
+                                    <span class="block text-[10px] text-slate-400">Ks = 4500 MPa, friction &mu; = 0.5</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Subsurface stress distribution heatmap -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                    <h3 class="text-sm font-bold text-gray-800 mb-2 px-2">Subsurface Von Mises Contact Stress Field</h3>
-                    <div id="plot-stress-heatmap" style="height: 380px;"></div>
+            </div>
+
+            <!-- Main Status Displays & Visualization Charts -->
+            <div class="col-span-2 space-y-6">
+
+                <!-- Operator Advisory Panel & RUL Twin Indicators -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    
+                    <!-- Traffic Light Alarm -->
+                    <div id="status-card" class="bg-emerald-950/20 rounded-xl border border-emerald-900/40 p-5 flex flex-col justify-between">
+                        <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tool Status</span>
+                            <span id="advisory-light-text" class="text-emerald-400 font-extrabold text-lg mt-1 block">SAFE OPERATION</span>
+                        </div>
+                        <div class="flex items-center space-x-2 mt-4">
+                            <span id="advisory-dot" class="h-3 w-3 rounded-full bg-emerald-500 animate-ping"></span>
+                            <span id="advisory-desc" class="text-[11px] text-slate-300">Tool is operating within steady-wear limits.</span>
+                        </div>
+                    </div>
+
+                    <!-- Remaining Useful Life -->
+                    <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex flex-col justify-between">
+                        <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Remaining Useful Life (RUL)</span>
+                            <span id="rul-text" class="text-3xl font-extrabold text-blue-400 mt-2 block">-- mins</span>
+                        </div>
+                        <div class="mt-4">
+                            <div class="w-full bg-slate-800 rounded-full h-2">
+                                <div id="rul-progress" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+                            </div>
+                            <span class="text-[9px] text-slate-400 block mt-1">Based on config threshold: <span id="info-limit" class="font-bold">0.30mm</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Physical Derived Info -->
+                    <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex flex-col justify-between text-xs space-y-2">
+                        <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Cutting Diagnostics</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-800 pb-1.5">
+                            <span class="text-slate-400">Relative Speed:</span>
+                            <span id="info-vrel" class="font-bold text-slate-200">0.0 mm/s</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-800 pb-1.5">
+                            <span class="text-slate-400">Resultant Force:</span>
+                            <span id="info-force" class="font-bold text-slate-200">0.0 N</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Peak Wear Rate:</span>
+                            <span class="font-bold text-slate-200"><span id="info-wear-rate">0.0</span> nm/s</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Plotly Flank Wear Curve -->
+                <div class="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4">
+                    <div class="flex justify-between items-center mb-2 px-2">
+                        <h3 class="text-sm font-bold text-slate-200">Tool Flank Wear Degradation (VB)</h3>
+                        <span class="text-[10px] text-slate-400 uppercase tracking-wider">Interactive Timeline</span>
+                    </div>
+                    <div id="plot-wear-curve" style="height: 310px;"></div>
+                </div>
+
+                <!-- Plotly Stress Heatmap -->
+                <div class="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-4">
+                    <div class="flex justify-between items-center mb-2 px-2">
+                        <h3 class="text-sm font-bold text-slate-200">Subsurface Stress Field Heatmap (Von Mises)</h3>
+                        <span class="text-[10px] text-slate-400 uppercase tracking-wider">Finite Difference Autograd Solver</span>
+                    </div>
+                    <div id="plot-stress-heatmap" style="height: 360px;"></div>
                 </div>
 
             </div>
@@ -189,14 +248,14 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 text-center py-6 mt-12 text-xs text-gray-500">
+    <footer class="border-t border-slate-900 bg-slate-950/60 text-center py-6 mt-12 text-xs text-slate-500">
         <p>MicroWear-PINN Model Calibration & Web Inference Platform.</p>
-        <p class="mt-1">Zero-backend browser evaluation running ONNX Runtime Webassembly. Developed by Principal AI Systems.</p>
+        <p class="mt-1">Zero-backend browser evaluation running Webassembly ONNX. Developed by Principal AI Systems.</p>
     </footer>
 
     <!-- App Logic -->
     <script>
-        // Global State variables
+        // Global variables & normalization scales
         let ortSession = null;
         const L_ref = 1.0;
         const D_ref = 0.5;
@@ -204,13 +263,14 @@
         const p_ref = 2500.0;
         const v_ref = 5000.0;
         
-        // Cutter Diameter in mm
-        const D_cutter = 19.05; 
+        const D_cutter = 19.05; // 19.05 mm diameter
         const w_c = 1.0;
         const vb0 = 0.05;
         
-        // Reference NASA Cases Data for Validation Comparison
-        // Case data in format: { times_mins, vbs_mm }
+        // Dynamic configuration thresholds based on industrial scale
+        let wearThreshold = 0.30; 
+        
+        // Berkeley/NASA Milling dataset reference case parameters
         const nasaCases = {
             "1": {
                 name: "Case 1 (Cast Iron, Feed=0.5mm)",
@@ -262,7 +322,6 @@
             }
         };
 
-        // Material Constants: Ks (MPa) and Friction Coefficient
         const materialConstants = {
             "steel": { Ks: 2000.0, mu: 0.3 },
             "titanium": { Ks: 3000.0, mu: 0.4 },
@@ -270,7 +329,10 @@
         };
 
         // UI Selectors
+        const scaleSelect = document.getElementById("industrial-scale");
+        const scaleDesc = document.getElementById("scale-desc");
         const casePresetSelect = document.getElementById("case-preset");
+        
         const sliderRpm = document.getElementById("slider-rpm");
         const sliderFeed = document.getElementById("slider-feed");
         const sliderDoc = document.getElementById("slider-doc");
@@ -282,82 +344,80 @@
         const infoVrel = document.getElementById("info-vrel");
         const infoForce = document.getElementById("info-force");
         const infoWearRate = document.getElementById("info-wear-rate");
-        const healthStatus = document.getElementById("health-status");
+        const infoLimit = document.getElementById("info-limit");
+        
         const rulText = document.getElementById("rul-text");
         const rulProgress = document.getElementById("rul-progress");
+        
+        const statusCard = document.getElementById("status-card");
+        const advisoryLight = document.getElementById("advisory-light-text");
+        const advisoryDot = document.getElementById("advisory-dot");
+        const advisoryDesc = document.getElementById("advisory-desc");
         
         const statusBanner = document.getElementById("model-status-banner");
         const statusText = document.getElementById("status-text");
 
-        // Initialization
         async function initApp() {
             try {
-                // Initialize ONNX Web Session
-                // Looks for model in model/ folder (relative to index.html location)
-                statusText.innerText = "Initializing ONNX Runtime Web assembly engine...";
+                statusText.innerText = "Initializing WASM engine and loading model weights...";
                 
-                // Using WebGL or WASM
+                // load single self-contained model
                 ortSession = await ort.InferenceSession.create('./model/microwear_pinn.onnx', {
                     executionProviders: ['wasm']
                 });
                 
-                statusBanner.className = "bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded shadow-sm flex items-center justify-between";
+                statusBanner.className = "bg-slate-900 border-l-4 border-emerald-500 p-4 rounded-lg shadow-md flex items-center justify-between border border-slate-800";
                 statusBanner.innerHTML = `
                     <div class="flex items-center space-x-3">
                         <svg class="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span class="text-sm font-medium text-emerald-800">ONNX Model Loaded successfully. Running client-side WebAssembly inference.</span>
+                        <span class="text-sm font-semibold text-emerald-300">WASM ONNX Digital Twin is live and responsive.</span>
                     </div>
-                    <span class="text-xs bg-emerald-200 text-emerald-800 px-2 py-1 rounded font-bold uppercase tracking-wider">Ready</span>
+                    <span class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded font-bold uppercase tracking-wider">Connected</span>
                 `;
                 
-                // Set Up Events listeners
                 setupEventListeners();
-                
-                // Initial Run
+                updateIndustrialScale();
                 evaluateModel();
                 
             } catch (err) {
-                console.error("ONNX Model Loading Error:", err);
-                statusBanner.className = "bg-rose-50 border-l-4 border-rose-500 p-4 rounded shadow-sm flex items-center justify-between";
-                statusText.innerText = "Error loading ONNX model. Check if model/microwear_pinn.onnx exists and is a valid ONNX graph.";
-                statusBanner.querySelector("svg").classList.remove("animate-spin");
-                statusBanner.querySelector("svg").classList.add("text-rose-500");
+                console.error("ONNX initialization failed:", err);
+                statusBanner.className = "bg-slate-900 border-l-4 border-rose-500 p-4 rounded shadow-sm flex items-center justify-between border border-slate-800";
                 statusBanner.innerHTML = `
                     <div class="flex items-center space-x-3">
                         <svg class="h-5 w-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        <span class="text-sm font-medium text-rose-800">Failed to load ONNX Model: ${err.message}. Please train and export the model using the CLI first.</span>
+                        <span class="text-sm font-medium text-rose-300">WASM model loading error: ${err.message}. Ensure model/microwear_pinn.onnx is fully generated.</span>
                     </div>
-                    <span class="text-xs bg-rose-200 text-rose-800 px-2 py-1 rounded font-bold uppercase tracking-wider">Error</span>
+                    <span class="text-xs bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded font-bold uppercase tracking-wider">Error</span>
                 `;
             }
         }
 
         function setupEventListeners() {
-            // Preset case selector
+            scaleSelect.addEventListener("change", () => {
+                updateIndustrialScale();
+                evaluateModel();
+            });
+
             casePresetSelect.addEventListener("change", (e) => {
                 const presetId = e.target.value;
                 if (presetId !== "custom") {
                     const preset = nasaCases[presetId];
-                    // Map spindle speed from v_rel (in mm/s) back to RPM: RPM = v_rel * 60 / (pi * D_cutter)
                     const rpm = Math.round((preset.v_rel * 60.0) / (Math.PI * D_cutter));
                     
                     sliderRpm.value = Math.min(Math.max(rpm, 300), 1500);
                     sliderFeed.value = preset.feed;
                     sliderDoc.value = preset.DOC;
                     
-                    // Set Material presets
-                    const matVal = presetId === "7" || presetId === "13" ? "steel" : "steel"; // Berkeley used Cast Iron and Steel.
-                    document.querySelector(`input[name="material-group"][value="steel"]`).checked = true; // defaulting
+                    document.querySelector(`input[name="material-group"][value="steel"]`).checked = true;
                 }
                 updateSliderDisplays();
                 evaluateModel();
             });
 
-            // Sliders change
             [sliderRpm, sliderFeed, sliderDoc].forEach(slider => {
                 slider.addEventListener("input", () => {
                     casePresetSelect.value = "custom";
@@ -366,7 +426,6 @@
                 });
             });
 
-            // Radio options for materials
             document.querySelectorAll('input[name="material-group"]').forEach(radio => {
                 radio.addEventListener("change", () => {
                     evaluateModel();
@@ -380,81 +439,76 @@
             valDoc.innerText = `${sliderDoc.value} mm`;
         }
 
-        // Run browser model inference
+        function updateIndustrialScale() {
+            const scale = scaleSelect.value;
+            if (scale === "large") {
+                wearThreshold = 0.25;
+                scaleDesc.innerText = "High-precision setups for Aerospace/Automotive. Strict ISO wear threshold of 0.25mm to avoid critical workpiece damage.";
+            } else if (scale === "medium") {
+                wearThreshold = 0.30;
+                scaleDesc.innerText = "Standard production job shop. Standard ISO wear limit threshold of 0.30mm matches commercial milling recommendations.";
+            } else {
+                wearThreshold = 0.40;
+                scaleDesc.innerText = "Prototype or small job shop. Highly lenient threshold of 0.40mm prioritises component life economy.";
+            }
+            infoLimit.innerText = `${wearThreshold.toFixed(2)}mm`;
+        }
+
         async function evaluateModel() {
             if (!ortSession) return;
             
-            // 1. Retrieve UI Parameters
             const rpm = parseFloat(sliderRpm.value);
             const feed = parseFloat(sliderFeed.value);
             const doc = parseFloat(sliderDoc.value);
             
-            // Get material constants
             const materialType = document.querySelector('input[name="material-group"]:checked').value;
             const matConsts = materialConstants[materialType];
             
-            // 2. Compute Physical derived quantities
-            // Cutting speed v_rel (mm/s)
             const v_rel = (Math.PI * D_cutter * rpm) / 60.0;
-            // Force Fr (N) = Ks * a_p * f
             const F_r = matConsts.Ks * doc * feed;
             
             infoVrel.innerText = `${v_rel.toFixed(1)} mm/s`;
             infoForce.innerText = `${F_r.toFixed(0)} N`;
             
-            // 3. Evaluate wear profile h(0, t) sequentially to model wear land growth
-            // Time array: 100 points up to 50 minutes (3000 seconds)
+            // Continuous temporal simulation loop
             const nSteps = 100;
             const t_max = 3000.0;
             const times_sec = Array.from({length: nSteps}, (_, i) => (i * t_max) / (nSteps - 1));
             
             const vb_pred = new Float32Array(nSteps);
             const pressures = new Float32Array(nSteps);
-            
-            // Initial Wear State
             let current_vb = 0.0;
             
-            // Evaluate model step-by-step to incorporate contact pressure feedback: p = Fr / (w_c * (VB + vb0))
             for (let i = 0; i < nSteps; i++) {
                 const t = times_sec[i];
-                
-                // Compute current contact pressure
                 const p = F_r / (w_c * (current_vb + vb0));
                 pressures[i] = p;
                 
-                // Query ONNX model at cutting edge (x=0, y=0, t=t_k)
-                const coords_tensor = new Float32Array([0.0, 0.0, t]); // [x, y, t]
-                const params_tensor = new Float32Array([p, v_rel]);    // [p, v_rel]
+                const coords_tensor = new Float32Array([0.0, 0.0, t]);
+                const params_tensor = new Float32Array([p, v_rel]);
                 
                 const ort_coords = new ort.Tensor('float32', coords_tensor, [1, 3]);
                 const ort_params = new ort.Tensor('float32', params_tensor, [1, 2]);
                 
-                const feeds_input = {
+                const results = await ortSession.run({
                     coords: ort_coords,
                     params: ort_params
-                };
+                });
                 
-                const results = await ortSession.run(feeds_input);
-                const h_val = results.h.data[0]; // negative flank wear
-                
-                // Flank wear VB = -h_val
-                current_vb = Math.max(0.0, -h_val);
+                current_vb = Math.max(0.0, -results.h.data[0]);
                 vb_pred[i] = current_vb;
             }
             
-            // 4. Compute Remaining Useful Life (RUL)
-            const failureThreshold = 0.3; // ISO flank wear threshold
+            // Compute Remaining Useful Life (RUL)
             let failIdx = -1;
             for (let i = 0; i < nSteps; i++) {
-                if (vb_pred[i] >= failureThreshold) {
+                if (vb_pred[i] >= wearThreshold) {
                     failIdx = i;
                     break;
                 }
             }
             
-            let RUL_mins = "--";
-            let toolStatus = "HEALTHY";
-            let statusColor = "text-emerald-600";
+            let RUL_mins = "INDEF";
             let progressPercent = 0;
             
             if (failIdx !== -1) {
@@ -463,23 +517,31 @@
                 progressPercent = 100;
                 
                 if (t_fail_min < 10) {
-                    toolStatus = "CRITICAL FAIL";
-                    statusColor = "text-rose-600 animate-pulse";
-                } else if (t_fail_min < 25) {
-                    toolStatus = "WARNING: WEAR EXCEEDED";
-                    statusColor = "text-amber-600";
+                    statusCard.className = "bg-rose-950/40 rounded-xl border border-rose-900/50 p-5 flex flex-col justify-between";
+                    advisoryLight.innerText = "TOOL RETIREMENT REQUIRED";
+                    advisoryLight.className = "text-rose-400 font-extrabold text-lg mt-1 block animate-pulse";
+                    advisoryDot.className = "h-3 w-3 rounded-full bg-rose-500 animate-ping";
+                    advisoryDesc.innerText = "Stop milling cell immediately! Flank wear threshold exceeded.";
+                } else {
+                    statusCard.className = "bg-amber-950/40 rounded-xl border border-amber-900/50 p-5 flex flex-col justify-between";
+                    advisoryLight.innerText = "ACCELERATED WEAR ALERT";
+                    advisoryLight.className = "text-amber-400 font-extrabold text-lg mt-1 block";
+                    advisoryDot.className = "h-3 w-3 rounded-full bg-amber-500 animate-ping";
+                    advisoryDesc.innerText = "Tool is entering transition wear region. Index insert shortly.";
                 }
             } else {
-                toolStatus = "EXCELLENT";
-                progressPercent = Math.min(100, Math.round((vb_pred[nSteps - 1] / failureThreshold) * 100));
+                statusCard.className = "bg-emerald-950/40 rounded-xl border border-emerald-900/50 p-5 flex flex-col justify-between";
+                advisoryLight.innerText = "TOOL ACTIVE (NORMAL)";
+                advisoryLight.className = "text-emerald-400 font-extrabold text-lg mt-1 block";
+                advisoryDot.className = "h-3 w-3 rounded-full bg-emerald-500 animate-pulse";
+                advisoryDesc.innerText = "Steady-state operations. Tool life is high.";
+                progressPercent = Math.min(100, Math.round((vb_pred[nSteps - 1] / wearThreshold) * 100));
             }
             
-            healthStatus.innerText = toolStatus;
-            healthStatus.className = `text-2xl font-extrabold mt-2 ${statusColor}`;
             rulText.innerText = RUL_mins;
             rulProgress.style.width = `${progressPercent}%`;
             
-            // Maximum wear rate estimation (derivative)
+            // Peak wear rate
             let maxRate = 0.0;
             for (let i = 1; i < nSteps; i++) {
                 const dt = times_sec[i] - times_sec[i-1];
@@ -488,14 +550,12 @@
             }
             infoWearRate.innerText = maxRate.toFixed(2);
             
-            // 5. Generate Subsurface Stress Heatmap at the final step (t_max)
-            // Evaluated on a grid: x in [-1, 1], y in [-0.5, 0]
+            // Subsurface stress finite difference grid evaluation at final step
             const nx = 40;
             const ny = 30;
             const x_grid = Array.from({length: nx}, (_, i) => -1.0 + (i * 2.0) / (nx - 1));
             const y_grid = Array.from({length: ny}, (_, i) => -0.5 + (i * 0.5) / (ny - 1));
             
-            // Flatten coordinates for batch evaluation
             const nGridPoints = nx * ny;
             const coords_flat = new Float32Array(nGridPoints * 3);
             const params_flat = new Float32Array(nGridPoints * 2);
@@ -508,14 +568,12 @@
                     coords_flat[idx * 3] = x_grid[c];
                     coords_flat[idx * 3 + 1] = y_grid[r];
                     coords_flat[idx * 3 + 2] = t_max;
-                    
                     params_flat[idx * 2] = p_final;
                     params_flat[idx * 2 + 1] = v_rel;
                     idx++;
                 }
             }
             
-            // Run batch ONNX forward pass
             const ort_coords_batch = new ort.Tensor('float32', coords_flat, [nGridPoints, 3]);
             const ort_params_batch = new ort.Tensor('float32', params_flat, [nGridPoints, 2]);
             
@@ -524,30 +582,19 @@
                 params: ort_params_batch
             });
             
-            const phi_batch = batch_results.phi.data; // length = nGridPoints
-            
-            // 6. Compute Stress Components using central finite differences on the grid
-            // Grid spacing:
+            const phi_batch = batch_results.phi.data;
             const dx = 2.0 / (nx - 1);
             const dy = 0.5 / (ny - 1);
             const vm_grid = Array.from({length: ny}, () => new Float32Array(nx));
             
-            // We map flat array indices: flat_idx = r * nx + c
             const get_phi = (r, c) => phi_batch[r * nx + c];
             
             for (let r = 1; r < ny - 1; r++) {
                 for (let c = 1; c < nx - 1; c++) {
-                    // Finite difference approximations:
-                    // sigma_yy = d2Phi/dx2
                     const s_yy = (get_phi(r, c+1) - 2.0 * get_phi(r, c) + get_phi(r, c-1)) / (dx * dx);
-                    
-                    // sigma_xx = d2Phi/dy2
                     const s_xx = (get_phi(r+1, c) - 2.0 * get_phi(r, c) + get_phi(r-1, c)) / (dy * dy);
-                    
-                    // tau_xy = -d2Phi / (dx dy) (using cross difference)
                     const t_xy = -(get_phi(r+1, c+1) - get_phi(r+1, c-1) - get_phi(r-1, c+1) + get_phi(r-1, c-1)) / (4.0 * dx * dy);
                     
-                    // Von Mises Stress (2D plane strain simplification)
                     const nu = 0.3;
                     const s_zz = nu * (s_xx + s_yy);
                     
@@ -561,7 +608,6 @@
                 }
             }
             
-            // Extrapolate boundaries for rendering completeness
             for (let r = 0; r < ny; r++) {
                 vm_grid[r][0] = vm_grid[r][1];
                 vm_grid[r][nx-1] = vm_grid[r][nx-2];
@@ -571,12 +617,10 @@
                 vm_grid[ny-1][c] = vm_grid[ny-2][c];
             }
             
-            // 7. Render Charts using Plotly
             renderCharts(times_sec, vb_pred, x_grid, y_grid, vm_grid);
         }
 
         function renderCharts(times_sec, vb_pred, x_grid, y_grid, vm_grid) {
-            // Plot 1: Wear curve vs Time
             const times_mins = times_sec.map(t => t / 60.0);
             
             const traces = [{
@@ -584,11 +628,20 @@
                 y: Array.from(vb_pred),
                 type: 'scatter',
                 mode: 'lines',
-                name: 'PINN Model Prediction',
-                line: { color: 'rgb(220, 38, 38)', width: 3 }
+                name: 'Calibrated PINN Digital Twin',
+                line: { color: '#3b82f6', width: 3.5 }
             }];
             
-            // Overlay NASA Case points if selected
+            // Add threshold line
+            traces.push({
+                x: [0, Math.max(...times_mins)],
+                y: [wearThreshold, wearThreshold],
+                type: 'scatter',
+                mode: 'lines',
+                name: 'ISO Wear Limit',
+                line: { color: '#ef4444', width: 1.5, dash: 'dash' }
+            });
+            
             const presetVal = casePresetSelect.value;
             if (presetVal !== "custom" && nasaCases[presetVal]) {
                 const caseData = nasaCases[presetVal];
@@ -597,44 +650,44 @@
                     y: caseData.vbs,
                     type: 'scatter',
                     mode: 'markers',
-                    name: `NASA ${caseData.name} Ground Truth`,
-                    marker: { color: 'rgb(30, 41, 59)', symbol: 'x', size: 10 }
+                    name: `NASA ${caseData.name} Sensor Ground Truth`,
+                    marker: { color: '#f8fafc', symbol: 'diamond-open', size: 9 }
                 });
             }
             
             const layout1 = {
-                margin: { l: 50, r: 20, t: 30, b: 40 },
-                xaxis: { title: 'Machining Time (minutes)', gridcolor: '#f3f4f6' },
-                yaxis: { title: 'Flank Wear VB (mm)', gridcolor: '#f3f4f6', range: [0, Math.max(0.6, ...vb_pred) * 1.1] },
-                legend: { orientation: 'h', y: -0.2 },
-                plot_bgcolor: '#ffffff',
-                paper_bgcolor: '#ffffff'
+                margin: { l: 50, r: 20, t: 20, b: 40 },
+                xaxis: { title: 'Machining Time (minutes)', gridcolor: '#1e293b', zeroline: false },
+                yaxis: { title: 'Flank Wear VB (mm)', gridcolor: '#1e293b', zeroline: false, range: [0, Math.max(0.6, ...vb_pred) * 1.1] },
+                legend: { orientation: 'h', y: -0.2, font: { color: '#94a3b8' } },
+                plot_bgcolor: '#0f172a',
+                paper_bgcolor: '#0f172a',
+                font: { color: '#cbd5e1' }
             };
             
             Plotly.newPlot('plot-wear-curve', traces, layout1, {responsive: true, displayModeBar: false});
             
-            // Plot 2: Subsurface Von Mises Heatmap
             const heatmapData = [{
                 z: vm_grid.map(row => Array.from(row)),
-                x: x_grid,
-                y: y_grid,
+                x: x_grid.map(x => x * L_ref),
+                y: y_grid.map(y => y * D_ref),
                 type: 'heatmap',
                 colorscale: 'Magma',
-                colorbar: { title: 'Stress (MPa)', titleside: 'right' }
+                colorbar: { title: 'Von Mises (MPa)', titleside: 'right', tickfont: { color: '#94a3b8' } }
             }];
             
             const layout2 = {
                 margin: { l: 50, r: 20, t: 20, b: 40 },
-                xaxis: { title: 'Contact Width x (mm)' },
-                yaxis: { title: 'Subsurface Depth y (mm)' },
-                plot_bgcolor: '#ffffff',
-                paper_bgcolor: '#ffffff'
+                xaxis: { title: 'Contact Width x (mm)', gridcolor: '#1e293b' },
+                yaxis: { title: 'Subsurface Depth y (mm)', gridcolor: '#1e293b' },
+                plot_bgcolor: '#0f172a',
+                paper_bgcolor: '#0f172a',
+                font: { color: '#cbd5e1' }
             };
             
             Plotly.newPlot('plot-stress-heatmap', heatmapData, layout2, {responsive: true, displayModeBar: false});
         }
 
-        // Run application on load
         window.addEventListener("load", initApp);
     </script>
 </body>
