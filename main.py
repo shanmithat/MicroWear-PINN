@@ -255,7 +255,7 @@ if __name__ == "__main__":
                                help="Path to the config file")
     export_parser.add_argument("--checkpoint", type=str, required=True, 
                                help="Path to PyTorch model checkpoint file (.pt)")
-    export_parser.add_argument("--output", type=str, default="public/model/microwear_pinn.onnx", 
+    export_parser.add_argument("--output", type=str, default="model/microwear_pinn.onnx", 
                                help="Destination path for exported ONNX model")
                                
     # Subparser for Evaluate

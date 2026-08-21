@@ -146,6 +146,6 @@ if __name__ == "__main__":
     # Create model, save dummy weights, test export
     model = MicroWearPINN(cfg)
     torch.save(model.state_dict(), "results/dummy_checkpoint.pt")
-    export_and_validate(cfg, "results/dummy_checkpoint.pt", "public/model/microwear_pinn.onnx")
+    export_and_validate(cfg, "results/dummy_checkpoint.pt", "model/microwear_pinn.onnx")
     if os.path.exists("results/dummy_checkpoint.pt"):
         os.remove("results/dummy_checkpoint.pt")

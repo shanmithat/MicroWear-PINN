@@ -321,7 +321,7 @@
             } catch (err) {
                 console.error("ONNX Model Loading Error:", err);
                 statusBanner.className = "bg-rose-50 border-l-4 border-rose-500 p-4 rounded shadow-sm flex items-center justify-between";
-                statusText.innerText = "Error loading ONNX model. Check if public/model/microwear_pinn.onnx exists and is a valid ONNX graph.";
+                statusText.innerText = "Error loading ONNX model. Check if model/microwear_pinn.onnx exists and is a valid ONNX graph.";
                 statusBanner.querySelector("svg").classList.remove("animate-spin");
                 statusBanner.querySelector("svg").classList.add("text-rose-500");
                 statusBanner.innerHTML = `
