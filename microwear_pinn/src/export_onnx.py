@@ -84,8 +84,13 @@ def export_and_validate(config: dict, checkpoint_path: str, onnx_path: str) -> b
     
     # Inline any external weights to ensure it's fully self-contained for browser execution
     import onnx
+    from onnx.external_data_helper import load_external_data_for_model
     print("Embedding weights into self-contained ONNX model (inlining external data)...")
     onnx_model = onnx.load(onnx_path)
+    load_external_data_for_model(onnx_model, os.path.dirname(onnx_path))
+    for tensor in onnx_model.graph.initializer:
+        tensor.data_location = onnx.TensorProto.DEFAULT
+        tensor.ClearField("external_data")
     onnx.save(onnx_model, onnx_path)
     
     # Remove the .data file if it was created
