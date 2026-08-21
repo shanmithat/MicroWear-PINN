@@ -16,3 +16,8 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 .DS_Store
+
+# Datasets
+mill.zip
+dataset/
+

@@ -72,6 +72,9 @@ class PINNTrainer:
         )
         
         self.benchmark_type = config['benchmark']['type']
+        self.case_data = None
+        self.nasa_loader = None
+        
         if self.benchmark_type == "sinusoidal":
             self.benchmark = SinusoidalBenchmark(
                 L=config['domain']['L'],
@@ -145,6 +148,14 @@ class PINNTrainer:
         self.x_data = x.to(self.device)
         self.t_data = t.to(self.device)
         self.h_data = h.to(self.device)
+        
+    def set_nasa_case_data(self, case_data: dict, loader: object):
+        """Loads processed NASA Case details and adjusts boundary coordinates."""
+        self.case_data = case_data
+        self.nasa_loader = loader
+        # Synchronize scale boundaries
+        self.config['domain']['T'] = case_data['T_max']
+        self.sampler.T = case_data['T_max']
 
     def _generate_collocation_batch(self) -> Dict[str, Tuple[torch.Tensor, ...]]:
         """Generates coordinate points for training, returns them with requires_grad=True."""
@@ -187,107 +198,179 @@ class PINNTrainer:
         x_out, y_out, t_out = batch['out']
         x_init, y_init, t_init = batch['init']
         
-        # 1. Biharmonic loss in bulk interior
-        Phi_int = self.model.predict_phi(x_int, y_int, t_int)
-        residual_biharmonic = compute_biharmonic_residual(Phi_int, x_int, y_int)
-        loss_biharmonic = torch.mean(torch.square(residual_biharmonic))
-        
-        # 2. Boundary Condition (BC) losses
-        # A) Surface traction boundary conditions at y=0
-        Phi_surf = self.model.predict_phi(x_surf, y_surf, t_surf)
-        sigma_xx_surf, sigma_yy_surf, tau_xy_surf = compute_stresses(Phi_surf, x_surf, y_surf)
-        
-        # Applied pressure at y=0
-        if self.benchmark:
-            # For analytical benchmarks, compute exact applied pressure profile
-            p_ext = torch.tensor(self.benchmark.compute_pressure(
-                x_surf.cpu().detach().numpy(), t_surf.cpu().detach().numpy()
-            ), dtype=torch.float32, device=self.device)
-        else:
-            # Default to flat pressure if no benchmark is set
-            p_ext = torch.ones_like(x_surf) * 1.0
+        if self.benchmark_type == "nasa":
+            # --- NASA MILLING CALIBRATION CASE ---
+            if self.case_data is None:
+                raise ValueError("Benchmark type is NASA but case data was not set.")
+                
+            # 1. Biharmonic loss in bulk interior
+            t_int_np = t_int.cpu().detach().numpy()
+            p_int_val = self.nasa_loader.sample_operational_pressure(self.case_data, t_int_np)
+            p_int = torch.tensor(p_int_val, dtype=torch.float32, device=self.device)
+            v_rel_int = torch.ones_like(x_int) * self.case_data['v_rel']
             
-        loss_bc_surf = torch.mean(torch.square(sigma_yy_surf + p_ext)) + \
-                        torch.mean(torch.square(tau_xy_surf + self.mu * p_ext))
-                        
-        # B) Outer boundaries: Match analytical stresses if benchmark is active,
-        # otherwise enforce zero traction at the boundaries
-        Phi_out = self.model.predict_phi(x_out, y_out, t_out)
-        sigma_xx_out, sigma_yy_out, tau_xy_out = compute_stresses(Phi_out, x_out, y_out)
-        
-        if self.benchmark and self.benchmark_type == "sinusoidal":
-            # For sinusoidal, we match the exact stress field on outer boundaries
-            sxx_true, syy_true, txy_true = self.benchmark.compute_stresses(
-                x_out.cpu().detach().numpy(), y_out.cpu().detach().numpy(), t_out.cpu().detach().numpy()
-            )
-            sxx_true = torch.tensor(sxx_true, dtype=torch.float32, device=self.device)
-            syy_true = torch.tensor(syy_true, dtype=torch.float32, device=self.device)
-            txy_true = torch.tensor(txy_true, dtype=torch.float32, device=self.device)
+            Phi_int = self.model.predict_phi(x_int, y_int, t_int, p_int, v_rel_int)
+            residual_biharmonic = compute_biharmonic_residual(Phi_int, x_int, y_int)
+            loss_biharmonic = torch.mean(torch.square(residual_biharmonic))
             
-            loss_bc_out = torch.mean(torch.square(sigma_xx_out - sxx_true)) + \
-                          torch.mean(torch.square(sigma_yy_out - syy_true)) + \
-                          torch.mean(torch.square(tau_xy_out - txy_true))
-        else:
-            # Free boundary decay at depth: stresses decay to zero
+            # 2. Boundary Condition (BC) losses
+            # A) Surface traction boundary conditions at y=0
+            t_surf_np = t_surf.cpu().detach().numpy()
+            p_surf_val = self.nasa_loader.sample_operational_pressure(self.case_data, t_surf_np)
+            p_surf = torch.tensor(p_surf_val, dtype=torch.float32, device=self.device)
+            v_rel_surf = torch.ones_like(x_surf) * self.case_data['v_rel']
+            
+            Phi_surf = self.model.predict_phi(x_surf, y_surf, t_surf, p_surf, v_rel_surf)
+            sigma_xx_surf, sigma_yy_surf, tau_xy_surf = compute_stresses(Phi_surf, x_surf, y_surf)
+            
+            # Hertzian pressure profile distributed across contact length a(t) = VB(t)/2 + 0.05
+            vbs_np = self.case_data['interp_vb'](t_surf_np)
+            a_np = vbs_np / 2.0 + 0.05
+            p_peak_np = (4.0 / np.pi) * p_surf_val
+            x_np = x_surf.cpu().detach().numpy()
+            
+            val_np = np.maximum(0.0, 1.0 - (x_np / a_np)**2)
+            p_ext_np = p_peak_np * np.sqrt(val_np)
+            p_ext = torch.tensor(p_ext_np, dtype=torch.float32, device=self.device)
+            
+            loss_bc_surf = torch.mean(torch.square(sigma_yy_surf + p_ext)) + \
+                            torch.mean(torch.square(tau_xy_surf + self.mu * p_ext))
+                            
+            # B) Outer boundaries (stress-free decay at depth)
+            t_out_np = t_out.cpu().detach().numpy()
+            p_out_val = self.nasa_loader.sample_operational_pressure(self.case_data, t_out_np)
+            p_out = torch.tensor(p_out_val, dtype=torch.float32, device=self.device)
+            v_rel_out = torch.ones_like(x_out) * self.case_data['v_rel']
+            
+            Phi_out = self.model.predict_phi(x_out, y_out, t_out, p_out, v_rel_out)
+            sigma_xx_out, sigma_yy_out, tau_xy_out = compute_stresses(Phi_out, x_out, y_out)
+            
             loss_bc_out = torch.mean(torch.square(sigma_xx_out)) + \
                           torch.mean(torch.square(sigma_yy_out)) + \
                           torch.mean(torch.square(tau_xy_out))
                           
-        loss_bc = loss_bc_surf + 0.1 * loss_bc_out
-        
-        # 3. Kinematic Wear residual at surface y=0
-        # h_surf is predicted by h_net at (x_surf, t_surf)
-        h_surf = self.model.predict_h(x_surf, t_surf)
-        k_w_surf = self.model.predict_k_w(x_surf)
-        
-        # Evaluate local contact pressure p = -sigma_yy
-        p_surf = compute_contact_pressure(Phi_surf, x_surf)
-        # Prevent pressure from going negative (physical contact constraint)
-        p_surf = torch.clamp(p_surf, min=0.0)
-        
-        residual_wear = compute_wear_residual(h_surf, t_surf, k_w_surf, p_surf, self.v_rel)
-        loss_wear = torch.mean(torch.square(residual_wear))
-        
-        # 4. Initial Condition (IC) losses at t=0
-        # A) Surface height profile is initially zero h(x, 0) = 0
-        h_init = self.model.predict_h(x_init, t_init)
-        loss_init_h = torch.mean(torch.square(h_init))
-        
-        # B) Match initial stress state potential if benchmark is active
-        Phi_init = self.model.predict_phi(x_init, y_init, t_init)
-        if self.benchmark and self.benchmark_type == "sinusoidal":
-            phi_true = torch.tensor(self.benchmark.compute_phi(
-                x_init.cpu().detach().numpy(), y_init.cpu().detach().numpy(), t_init.cpu().detach().numpy()
-            ), dtype=torch.float32, device=self.device)
-            loss_init_phi = torch.mean(torch.square(Phi_init - phi_true))
+            loss_bc = loss_bc_surf + 0.1 * loss_bc_out
+            
+            # 3. Kinematic Wear residual at surface y=0
+            h_surf = self.model.predict_h(x_surf, t_surf, p_surf, v_rel_surf)
+            k_w_surf = self.model.predict_k_w(x_surf)
+            residual_wear = compute_wear_residual(h_surf, t_surf, k_w_surf, p_ext, v_rel_surf)
+            loss_wear = torch.mean(torch.square(residual_wear))
+            
+            # 4. Initial Condition (IC) losses at t=0
+            p_init_val = self.nasa_loader.sample_operational_pressure(self.case_data, np.zeros((1, 1)))[0, 0]
+            p_init = torch.ones_like(x_init) * float(p_init_val)
+            v_rel_init = torch.ones_like(x_init) * self.case_data['v_rel']
+            
+            h_init = self.model.predict_h(x_init, t_init, p_init, v_rel_init)
+            loss_init = torch.mean(torch.square(h_init)) # Initial wear depth is zero
+            
+            # 5. Sparse Data Observation loss (Flank Wear VB calibration)
+            t_d_np = self.case_data['t_data'][:, None]
+            x_d_np = np.zeros_like(t_d_np) # Evaluated at the tool cutting edge x=0
+            vb_d_np = self.case_data['vb_data'][:, None]
+            
+            t_data = torch.tensor(t_d_np, dtype=torch.float32, device=self.device)
+            x_data = torch.tensor(x_d_np, dtype=torch.float32, device=self.device)
+            vb_data = torch.tensor(vb_d_np, dtype=torch.float32, device=self.device)
+            
+            p_data_val = self.nasa_loader.sample_operational_pressure(self.case_data, t_d_np)
+            p_data = torch.tensor(p_data_val, dtype=torch.float32, device=self.device)
+            v_rel_data = torch.ones_like(t_data) * self.case_data['v_rel']
+            
+            h_pred_data = self.model.predict_h(x_data, t_data, p_data, v_rel_data)
+            # h = -VB, so h_pred_data should match -vb_data
+            loss_data = torch.mean(torch.square(h_pred_data + vb_data))
+            
         else:
-            loss_init_phi = torch.tensor(0.0, device=self.device)
+            # --- SYNTHETIC BENCHMARK CASE ---
+            # 1. Biharmonic loss in bulk interior
+            Phi_int = self.model.predict_phi(x_int, y_int, t_int)
+            residual_biharmonic = compute_biharmonic_residual(Phi_int, x_int, y_int)
+            loss_biharmonic = torch.mean(torch.square(residual_biharmonic))
             
-        loss_init = loss_init_h + loss_init_phi
-        
-        # 5. Sparse Data Observation loss (for h calibrating inverse parameter identification)
-        if self.x_data is not None:
-            h_pred_data = self.model.predict_h(self.x_data, self.t_data)
-            loss_data = torch.mean(torch.square(h_pred_data - self.h_data))
-        elif self.benchmark:
-            # Synthesize calibration points from analytical solution if no real data is loaded
-            # Use points from the surface
-            x_b = x_surf[:self.config['sampling']['n_data']].detach()
-            t_b = t_surf[:self.config['sampling']['n_data']].detach()
+            # 2. Boundary Condition (BC) losses
+            # A) Surface traction boundary conditions at y=0
+            Phi_surf = self.model.predict_phi(x_surf, y_surf, t_surf)
+            sigma_xx_surf, sigma_yy_surf, tau_xy_surf = compute_stresses(Phi_surf, x_surf, y_surf)
             
-            h_true = torch.tensor(self.benchmark.compute_h(
-                x_b.cpu().numpy(), t_b.cpu().numpy()
-            ), dtype=torch.float32, device=self.device)
+            # Applied pressure at y=0
+            if self.benchmark:
+                p_ext = torch.tensor(self.benchmark.compute_pressure(
+                    x_surf.cpu().detach().numpy(), t_surf.cpu().detach().numpy()
+                ), dtype=torch.float32, device=self.device)
+            else:
+                p_ext = torch.ones_like(x_surf) * 1.0
+                
+            loss_bc_surf = torch.mean(torch.square(sigma_yy_surf + p_ext)) + \
+                            torch.mean(torch.square(tau_xy_surf + self.mu * p_ext))
+                            
+            # B) Outer boundaries
+            Phi_out = self.model.predict_phi(x_out, y_out, t_out)
+            sigma_xx_out, sigma_yy_out, tau_xy_out = compute_stresses(Phi_out, x_out, y_out)
             
-            # Optionally add Gaussian noise to test inverse problem stability
-            noise = self.config['benchmark']['noise_level'] * torch.randn_like(h_true)
-            h_obs = h_true + noise
+            if self.benchmark and self.benchmark_type == "sinusoidal":
+                sxx_true, syy_true, txy_true = self.benchmark.compute_stresses(
+                    x_out.cpu().detach().numpy(), y_out.cpu().detach().numpy(), t_out.cpu().detach().numpy()
+                )
+                sxx_true = torch.tensor(sxx_true, dtype=torch.float32, device=self.device)
+                syy_true = torch.tensor(syy_true, dtype=torch.float32, device=self.device)
+                txy_true = torch.tensor(txy_true, dtype=torch.float32, device=self.device)
+                
+                loss_bc_out = torch.mean(torch.square(sigma_xx_out - sxx_true)) + \
+                              torch.mean(torch.square(sigma_yy_out - syy_true)) + \
+                              torch.mean(torch.square(tau_xy_out - txy_true))
+            else:
+                loss_bc_out = torch.mean(torch.square(sigma_xx_out)) + \
+                              torch.mean(torch.square(sigma_yy_out)) + \
+                              torch.mean(torch.square(tau_xy_out))
+                              
+            loss_bc = loss_bc_surf + 0.1 * loss_bc_out
             
-            h_pred_data = self.model.predict_h(x_b, t_b)
-            loss_data = torch.mean(torch.square(h_pred_data - h_obs))
-        else:
-            loss_data = torch.tensor(0.0, device=self.device)
+            # 3. Kinematic Wear residual at surface y=0
+            h_surf = self.model.predict_h(x_surf, t_surf)
+            k_w_surf = self.model.predict_k_w(x_surf)
+            p_surf = compute_contact_pressure(Phi_surf, x_surf)
+            p_surf = torch.clamp(p_surf, min=0.0)
             
+            residual_wear = compute_wear_residual(h_surf, t_surf, k_w_surf, p_surf, self.v_rel)
+            loss_wear = torch.mean(torch.square(residual_wear))
+            
+            # 4. Initial Condition (IC) losses at t=0
+            h_init = self.model.predict_h(x_init, t_init)
+            loss_init_h = torch.mean(torch.square(h_init))
+            
+            Phi_init = self.model.predict_phi(x_init, y_init, t_init)
+            if self.benchmark and self.benchmark_type == "sinusoidal":
+                phi_true = torch.tensor(self.benchmark.compute_phi(
+                    x_init.cpu().detach().numpy(), y_init.cpu().detach().numpy(), t_init.cpu().detach().numpy()
+                ), dtype=torch.float32, device=self.device)
+                loss_init_phi = torch.mean(torch.square(Phi_init - phi_true))
+            else:
+                loss_init_phi = torch.tensor(0.0, device=self.device)
+                
+            loss_init = loss_init_h + loss_init_phi
+            
+            # 5. Sparse Data Observation loss
+            if self.x_data is not None:
+                h_pred_data = self.model.predict_h(self.x_data, self.t_data)
+                loss_data = torch.mean(torch.square(h_pred_data - self.h_data))
+            elif self.benchmark:
+                x_b = x_surf[:self.config['sampling']['n_data']].detach()
+                t_b = t_surf[:self.config['sampling']['n_data']].detach()
+                
+                h_true = torch.tensor(self.benchmark.compute_h(
+                    x_b.cpu().numpy(), t_b.cpu().numpy()
+                ), dtype=torch.float32, device=self.device)
+                
+                noise = self.config['benchmark']['noise_level'] * torch.randn_like(h_true)
+                h_obs = h_true + noise
+                
+                h_pred_data = self.model.predict_h(x_b, t_b)
+                loss_data = torch.mean(torch.square(h_pred_data - h_obs))
+            else:
+                loss_data = torch.tensor(0.0, device=self.device)
+                
         # Regularization (L2 penalty)
         loss_reg = torch.tensor(0.0, device=self.device)
         for param in self.model.parameters():

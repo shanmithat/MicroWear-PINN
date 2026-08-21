@@ -1,4 +1,5 @@
 import os
+import sys
 import argparse
 import yaml
 import torch
@@ -8,11 +9,14 @@ from typing import Dict, Optional
 from microwear_pinn.src.model import MicroWearPINN
 from microwear_pinn.src.trainer import PINNTrainer
 from microwear_pinn.src.dataset import load_csv_profilometry
+from microwear_pinn.src.nasa_milling_loader import NASAMillingLoader
+from microwear_pinn.src.export_onnx import export_and_validate
 from microwear_pinn.src.utils import (
     plot_loss_history,
     plot_wear_evolution,
     plot_subsurface_stresses,
-    plot_wear_coefficient
+    plot_wear_coefficient,
+    plot_nasa_calibration
 )
 
 def load_config(config_path: str) -> dict:
@@ -26,8 +30,7 @@ def load_config(config_path: str) -> dict:
 
 def run_training(config: dict, custom_data_path: Optional[str] = None, save_dir: str = "results"):
     """
-    Sets up and executes the dual-stage training loop for MicroWear-PINN.
-    Generates and saves performance, wear state, and subsurface stress plots.
+    Sets up and executes the dual-stage training loop for MicroWear-PINN (Benchmark Mode).
     """
     os.makedirs(save_dir, exist_ok=True)
     
@@ -83,6 +86,61 @@ def run_training(config: dict, custom_data_path: Optional[str] = None, save_dir:
     print(f"=== MicroWear-PINN Run Completed. Outputs saved in: '{save_dir}' ===")
 
 
+def run_nasa_training(config: dict, case_id: int, save_dir: str = "results"):
+    """
+    Ingests and trains the MicroWear-PINN model on the NASA Milling Tool Wear dataset.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # Force parameterized and NASA configuration flags
+    config['model']['parameterized'] = True
+    config['benchmark']['type'] = "nasa"
+    
+    # Instantiate NASA Loader
+    loader = NASAMillingLoader()
+    print(f"Ingesting and loading data for NASA Milling Case {case_id}...")
+    case_data = loader.load_case_data(case_id=case_id)
+    
+    # Initialize the model and trainer
+    model = MicroWearPINN(config)
+    trainer = PINNTrainer(model, config)
+    trainer.set_nasa_case_data(case_data, loader)
+    
+    # Run calibration training
+    history = trainer.train()
+    
+    # Save the calibrated weights
+    checkpoint_path = os.path.join(save_dir, "microwear_nasa_calibrated.pt")
+    torch.save(model.state_dict(), checkpoint_path)
+    print(f"Saved calibrated model weights to: {checkpoint_path}")
+    
+    # Generate calibration verification plots
+    print("Generating NASA calibration visualizations...")
+    plot_loss_history(history, os.path.join(save_dir, "nasa_loss_convergence.png"))
+    plot_nasa_calibration(model, config, case_data, loader, save_dir)
+    
+    # Plot spatial wear coefficient field
+    plot_wear_coefficient(
+        model, 
+        config, 
+        os.path.join(save_dir, "nasa_identified_wear_coefficient.png")
+    )
+    
+    print(f"=== NASA Case {case_id} Calibration Complete. Outputs saved in: '{save_dir}' ===")
+
+
+def run_export_onnx(config: dict, checkpoint_path: str, onnx_path: str):
+    """
+    Exports a trained PyTorch PINN checkpoint to ONNX format.
+    """
+    # Enforce parameterized model structure during ONNX compilation
+    config['model']['parameterized'] = True
+    success = export_and_validate(config, checkpoint_path, onnx_path)
+    if not success:
+        print("ONNX model parity check failed! Please review model outputs.")
+        sys.exit(1)
+
+
 def run_evaluation(config: dict, checkpoint_path: str, save_dir: str = "eval_results"):
     """
     Loads a trained model checkpoint and performs forward inference.
@@ -100,30 +158,40 @@ def run_evaluation(config: dict, checkpoint_path: str, save_dir: str = "eval_res
     # Instantiate trainer class solely to access benchmark analytical tools
     trainer = PINNTrainer(model, config)
     
-    # Generate visualization plots
-    print("Evaluating and plotting wear profiles...")
-    plot_wear_evolution(
-        model, 
-        config, 
-        os.path.join(save_dir, "eval_wear_evolution.png"), 
-        benchmark=trainer.benchmark
-    )
-    
-    T = config['domain']['T']
-    plot_subsurface_stresses(
-        model, 
-        config, 
-        t_val=T, 
-        save_path=os.path.join(save_dir, "eval_subsurface_stresses.png"), 
-        benchmark=trainer.benchmark
-    )
-    
-    plot_wear_coefficient(
-        model, 
-        config, 
-        os.path.join(save_dir, "eval_wear_coefficient.png"), 
-        benchmark=trainer.benchmark
-    )
+    if config['benchmark']['type'] == "nasa":
+        # Load NASA case dataset for evaluation comparison
+        loader = NASAMillingLoader()
+        case_id = config['benchmark'].get('case_id', 1)
+        case_data = loader.load_case_data(case_id=case_id)
+        trainer.set_nasa_case_data(case_data, loader)
+        print(f"Evaluating NASA Case {case_id}...")
+        plot_nasa_calibration(model, config, case_data, loader, save_dir)
+        plot_wear_coefficient(model, config, os.path.join(save_dir, "nasa_eval_wear_coefficient.png"))
+    else:
+        # Standard benchmarks
+        print("Evaluating and plotting wear profiles...")
+        plot_wear_evolution(
+            model, 
+            config, 
+            os.path.join(save_dir, "eval_wear_evolution.png"), 
+            benchmark=trainer.benchmark
+        )
+        
+        T = config['domain']['T']
+        plot_subsurface_stresses(
+            model, 
+            config, 
+            t_val=T, 
+            save_path=os.path.join(save_dir, "eval_subsurface_stresses.png"), 
+            benchmark=trainer.benchmark
+        )
+        
+        plot_wear_coefficient(
+            model, 
+            config, 
+            os.path.join(save_dir, "eval_wear_coefficient.png"), 
+            benchmark=trainer.benchmark
+        )
     print(f"Evaluation complete. Results saved in: '{save_dir}'")
 
 
@@ -163,14 +231,32 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MicroWear-PINN: Physics-Informed Neural Network for Wear Modeling")
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
     
-    # Subparser for Train
-    train_parser = subparsers.add_parser("train", help="Train the PINN model")
+    # Subparser for Train (Benchmarks)
+    train_parser = subparsers.add_parser("train", help="Train the PINN model on analytical benchmarks")
     train_parser.add_argument("--config", type=str, default="microwear_pinn/configs/default_config.yaml", 
                                help="Path to the config file")
     train_parser.add_argument("--data", type=str, default=None, 
                                help="Path to sparse experimental CSV metrology profile")
     train_parser.add_argument("--save-dir", type=str, default="results", 
                                help="Directory to save training outputs")
+                               
+    # Subparser for Train NASA
+    nasa_parser = subparsers.add_parser("train-nasa", help="Train and calibrate the PINN on NASA Milling Dataset")
+    nasa_parser.add_argument("--config", type=str, default="microwear_pinn/configs/default_config.yaml", 
+                             help="Path to the config file")
+    nasa_parser.add_argument("--case-id", type=int, default=1, 
+                             help="NASA Milling Case ID to calibrate (1-16)")
+    nasa_parser.add_argument("--save-dir", type=str, default="results", 
+                             help="Directory to save training outputs")
+                             
+    # Subparser for Export ONNX
+    export_parser = subparsers.add_parser("export", help="Export PyTorch model checkpoint to ONNX")
+    export_parser.add_argument("--config", type=str, default="microwear_pinn/configs/default_config.yaml", 
+                               help="Path to the config file")
+    export_parser.add_argument("--checkpoint", type=str, required=True, 
+                               help="Path to PyTorch model checkpoint file (.pt)")
+    export_parser.add_argument("--output", type=str, default="public/model/microwear_pinn.onnx", 
+                               help="Destination path for exported ONNX model")
                                
     # Subparser for Evaluate
     eval_parser = subparsers.add_parser("evaluate", help="Evaluate a pre-trained model")
@@ -189,11 +275,16 @@ if __name__ == "__main__":
     if args.command == "train":
         cfg = load_config(args.config)
         run_training(cfg, args.data, args.save_dir)
+    elif args.command == "train-nasa":
+        cfg = load_config(args.config)
+        run_nasa_training(cfg, args.case_id, args.save_dir)
+    elif args.command == "export":
+        cfg = load_config(args.config)
+        run_export_onnx(cfg, args.checkpoint, args.output)
     elif args.command == "evaluate":
         cfg = load_config(args.config)
         run_evaluation(cfg, args.checkpoint, args.save_dir)
     elif args.command == "test":
-        import sys
         sys.exit(run_tests())
     else:
         parser.print_help()

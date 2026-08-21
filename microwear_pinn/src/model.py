@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from typing import Optional, List
 
 class RandomFourierFeatures(nn.Module):
     """
@@ -82,14 +83,27 @@ class MicroWearPINN(nn.Module):
     Complete MicroWear PINN architecture.
     Composed of three independent sub-networks to enforce spatial-temporal properties:
       1. k_w(x): Wear coefficient network (1D input: x)
-      2. h(x, t): Surface height profile network (2D input: x, t)
-      3. Phi(x, y, t): Airy stress potential network (3D input: x, y, t)
+      2. h(x, t, p, v_rel): Surface height profile network
+      3. Phi(x, y, t, p, v_rel): Airy stress potential network
+    Supports dynamic parameterization by operational contact parameters (p, v_rel).
     """
     def __init__(self, config: dict):
         super().__init__()
         
         # Load configuration details
         model_cfg = config['model']
+        self.parameterized = model_cfg.get('parameterized', False)
+        
+        # Domain scaling parameters (to normalize inputs to ~ [-1, 1])
+        domain_cfg = config.get('domain', {})
+        self.L_ref = float(domain_cfg.get('L', 1.0))
+        self.D_ref = float(domain_cfg.get('D', 0.5))
+        self.T_ref = float(domain_cfg.get('T', 1.0))
+        
+        # Physical reference parameters
+        physics_cfg = config.get('physics', {})
+        self.p_ref = float(physics_cfg.get('p_ref', 1000.0))
+        self.v_ref = float(physics_cfg.get('v_ref', 5000.0))
         
         # 1. Wear Coefficient Sub-network (input: x)
         kw_cfg = model_cfg['k_w']
@@ -103,10 +117,11 @@ class MicroWearPINN(nn.Module):
             activation=kw_cfg['activation']
         )
         
-        # 2. Surface Height Profile Sub-network (input: x, t)
+        # 2. Surface Height Profile Sub-network
         h_cfg = model_cfg['h']
+        h_in_dim = 4 if self.parameterized else 2
         self.h_net = CoordinateNet(
-            in_dim=2,
+            in_dim=h_in_dim,
             out_dim=1,
             hidden_layers=h_cfg['layers'],
             use_rff=h_cfg['use_rff'],
@@ -115,10 +130,11 @@ class MicroWearPINN(nn.Module):
             activation=h_cfg['activation']
         )
         
-        # 3. Airy Stress Function Sub-network (input: x, y, t)
+        # 3. Airy Stress Function Sub-network
         phi_cfg = model_cfg['phi']
+        phi_in_dim = 5 if self.parameterized else 3
         self.phi_net = CoordinateNet(
-            in_dim=3,
+            in_dim=phi_in_dim,
             out_dim=1,
             hidden_layers=phi_cfg['layers'],
             use_rff=phi_cfg['use_rff'],
@@ -129,21 +145,52 @@ class MicroWearPINN(nn.Module):
 
     def predict_k_w(self, x: torch.Tensor) -> torch.Tensor:
         """Predict wear coefficient k_w at spatial coordinate x (N, 1)."""
-        return self.k_w_net(x)
+        x_norm = x / self.L_ref
+        return self.k_w_net(x_norm)
 
-    def predict_h(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """Predict surface profile height h at coordinate (x, t)."""
-        coords = torch.cat([x, t], dim=-1)
+    def predict_h(self, x: torch.Tensor, t: torch.Tensor, 
+                  p: Optional[torch.Tensor] = None, v_rel: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Predict surface profile height h at coordinate (x, t) and operating parameters."""
+        x_norm = x / self.L_ref
+        t_norm = t / self.T_ref
+        
+        if self.parameterized:
+            if p is None or v_rel is None:
+                # Provide dummy ones if not passed (compatibility)
+                p = torch.ones_like(x)
+                v_rel = torch.ones_like(x)
+            p_norm = p / self.p_ref
+            v_norm = v_rel / self.v_ref
+            coords = torch.cat([x_norm, t_norm, p_norm, v_norm], dim=-1)
+        else:
+            coords = torch.cat([x_norm, t_norm], dim=-1)
+            
         return self.h_net(coords)
 
-    def predict_phi(self, x: torch.Tensor, y: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """Predict Airy stress potential Phi at coordinate (x, y, t)."""
-        coords = torch.cat([x, y, t], dim=-1)
+    def predict_phi(self, x: torch.Tensor, y: torch.Tensor, t: torch.Tensor, 
+                    p: Optional[torch.Tensor] = None, v_rel: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Predict Airy stress potential Phi at coordinate (x, y, t) and operating parameters."""
+        x_norm = x / self.L_ref
+        y_norm = y / self.D_ref
+        t_norm = t / self.T_ref
+        
+        if self.parameterized:
+            if p is None or v_rel is None:
+                # Provide dummy ones if not passed (compatibility)
+                p = torch.ones_like(x)
+                v_rel = torch.ones_like(x)
+            p_norm = p / self.p_ref
+            v_norm = v_rel / self.v_ref
+            coords = torch.cat([x_norm, y_norm, t_norm, p_norm, v_norm], dim=-1)
+        else:
+            coords = torch.cat([x_norm, y_norm, t_norm], dim=-1)
+            
         return self.phi_net(coords)
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, t: torch.Tensor):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, t: torch.Tensor, 
+                p: Optional[torch.Tensor] = None, v_rel: Optional[torch.Tensor] = None):
         """Evaluate all sub-networks for the given coordinate grids."""
         k_w = self.predict_k_w(x)
-        h = self.predict_h(x, t)
-        Phi = self.predict_phi(x, y, t)
+        h = self.predict_h(x, t, p, v_rel)
+        Phi = self.predict_phi(x, y, t, p, v_rel)
         return k_w, h, Phi
