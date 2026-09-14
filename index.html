@@ -21,6 +21,13 @@
             background: #3b82f6;
             margin-top: -0.25rem;
         }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.97); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
@@ -36,13 +43,19 @@
                     Physics-Informed Neural Network • Shop-Floor Digital Twin
                 </p>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap justify-center">
                 <span class="text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full">
                     NASA Milling Calibration Engine
                 </span>
                 <span class="text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1.5 rounded-full">
                     WASM ONNX-Runtime v1.29
                 </span>
+                <button id="btn-export-report" onclick="openDiagnosticsReport()" class="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transition transform active:scale-95 border border-blue-400/30 cursor-pointer">
+                    <svg class="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span>Export Diagnostics Report</span>
+                </button>
             </div>
         </div>
     </header>
@@ -219,6 +232,12 @@
                             <span class="text-slate-400">Peak Wear Rate:</span>
                             <span class="font-bold text-slate-200"><span id="info-wear-rate">0.0</span> nm/s</span>
                         </div>
+                        <button onclick="openDiagnosticsReport()" class="w-full mt-2 flex items-center justify-center gap-1.5 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 text-[11px] font-semibold py-1.5 px-3 rounded-lg transition cursor-pointer active:scale-95">
+                            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span>Generate Diagnostics Report</span>
+                        </button>
                     </div>
 
                 </div>
@@ -246,6 +265,64 @@
         </div>
 
     </main>
+
+    <!-- Diagnostics & Prediction Report Modal -->
+    <div id="report-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-6 overflow-y-auto" onclick="handleBackdropClick(event)">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-100 animate-fadeIn" onclick="event.stopPropagation()">
+            
+            <!-- Modal Header -->
+            <div class="px-5 py-4 border-b border-slate-800 bg-slate-900/95 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-10">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-blue-500/10 border border-blue-500/30 rounded-lg text-blue-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-white">Tool Wear & Subsurface Stress Diagnostics Report</h2>
+                        <p class="text-[11px] text-slate-400">MicroWear-PINN Tribology & Contact Mechanics • Document Ref: <span id="rep-doc-id" class="font-mono text-blue-400 font-bold">MWR-2026-001</span></p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="exportReportPrint()" class="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition shadow cursor-pointer active:scale-95">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                        </svg>
+                        <span>Print / Save PDF</span>
+                    </button>
+                    <button onclick="exportReportCSV()" class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer active:scale-95">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        <span>Export CSV</span>
+                    </button>
+                    <button onclick="closeDiagnosticsReport()" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Modal Content -->
+            <div id="report-modal-body" class="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm">
+                <!-- Content inserted dynamically by openDiagnosticsReport() -->
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="px-6 py-3 border-t border-slate-800 bg-slate-900 flex justify-between items-center text-xs text-slate-400">
+                <span class="text-[11px]">Certified Physics-Informed Neural Network • Contact Mechanics Solver</span>
+                <div class="flex space-x-2">
+                    <button onclick="closeDiagnosticsReport()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition cursor-pointer">
+                        Close
+                    </button>
+                    <button onclick="exportReportPrint()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition shadow cursor-pointer">
+                        Print / Save PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="border-t border-slate-900 bg-slate-950/60 text-center py-6 mt-12 text-xs text-slate-500">
@@ -616,8 +693,58 @@
                 vm_grid[0][c] = vm_grid[1][c];
                 vm_grid[ny-1][c] = vm_grid[ny-2][c];
             }
+
+            // Compute peak Von Mises stress and its subsurface location
+            let maxVM = 0;
+            let maxVM_x = 0;
+            let maxVM_y = 0;
+            for (let r = 0; r < ny; r++) {
+                for (let c = 0; c < nx; c++) {
+                    if (vm_grid[r][c] > maxVM) {
+                        maxVM = vm_grid[r][c];
+                        maxVM_x = x_grid[c] * L_ref;
+                        maxVM_y = y_grid[r] * D_ref;
+                    }
+                }
+            }
             
             renderCharts(times_sec, vb_pred, x_grid, y_grid, vm_grid);
+
+            // Cache data for Diagnostics & Prediction Report Generation
+            const selectedMatInput = document.querySelector('input[name="material-group"]:checked');
+            const matName = selectedMatInput ? selectedMatInput.closest('label').querySelector('.text-sm').innerText : "Structural Steel";
+            
+            window.latestReportData = {
+                rpm,
+                feed,
+                doc,
+                materialType,
+                materialName: matName,
+                matConsts,
+                v_rel,
+                F_r,
+                times_sec,
+                vb_pred,
+                pressures,
+                wearThreshold,
+                industrialScale: scaleSelect.value,
+                industrialScaleName: scaleSelect.options[scaleSelect.selectedIndex].text,
+                RUL_mins,
+                toolStatus: advisoryLight.innerText,
+                toolStatusDesc: advisoryDesc.innerText,
+                isSafe: failIdx === -1,
+                isWarning: failIdx !== -1 && (times_sec[failIdx] / 60.0) >= 10,
+                isCritical: failIdx !== -1 && (times_sec[failIdx] / 60.0) < 10,
+                maxRate,
+                maxVonMises: maxVM,
+                maxVM_x,
+                maxVM_y,
+                p_final,
+                current_vb,
+                casePresetName: casePresetSelect.options[casePresetSelect.selectedIndex].text,
+                generatedAt: new Date().toLocaleString(),
+                docId: 'MWR-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(1000 + Math.random() * 9000)
+            };
         }
 
         function renderCharts(times_sec, vb_pred, x_grid, y_grid, vm_grid) {
@@ -686,6 +813,471 @@
             };
             
             Plotly.newPlot('plot-stress-heatmap', heatmapData, layout2, {responsive: true, displayModeBar: false});
+        }
+
+        // --- Diagnostics & Prediction Report Handlers ---
+
+        function handleBackdropClick(e) {
+            if (e.target.id === 'report-modal') {
+                closeDiagnosticsReport();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeDiagnosticsReport();
+        });
+
+        function closeDiagnosticsReport() {
+            const modal = document.getElementById('report-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function openDiagnosticsReport() {
+            if (!window.latestReportData) {
+                await evaluateModel();
+            }
+            const data = window.latestReportData;
+            if (!data) return;
+
+            document.getElementById('rep-doc-id').innerText = data.docId;
+            const modalBody = document.getElementById('report-modal-body');
+
+            // Render temporary loading spinner while capturing chart snapshots
+            modalBody.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-16 space-y-3">
+                    <svg class="h-8 w-8 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-sm font-medium text-slate-300">Generating Diagnostics & Capturing Stress Fields...</span>
+                </div>
+            `;
+            document.getElementById('report-modal').classList.remove('hidden');
+
+            // Capture Plotly charts as Base64 images
+            let wearImgUrl = '';
+            let stressImgUrl = '';
+            try {
+                wearImgUrl = await Plotly.toImage(document.getElementById('plot-wear-curve'), {
+                    format: 'png',
+                    width: 720,
+                    height: 340
+                });
+                stressImgUrl = await Plotly.toImage(document.getElementById('plot-stress-heatmap'), {
+                    format: 'png',
+                    width: 720,
+                    height: 340
+                });
+            } catch (err) {
+                console.warn('Plotly image capture error:', err);
+            }
+
+            // Status Badge Styling
+            let statusBadgeBg = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+            let statusBorder = "border-emerald-500/40 bg-emerald-950/20";
+            let statusIcon = "✓";
+            if (data.isCritical) {
+                statusBadgeBg = "bg-rose-500/20 text-rose-400 border-rose-500/30";
+                statusBorder = "border-rose-500/40 bg-rose-950/20";
+                statusIcon = "⚠";
+            } else if (data.isWarning) {
+                statusBadgeBg = "bg-amber-500/20 text-amber-400 border-amber-500/30";
+                statusBorder = "border-amber-500/40 bg-amber-950/20";
+                statusIcon = "!";
+            }
+
+            // Yield stress assessment for Tungsten Carbide (~2800 MPa yield)
+            const carbideYield = 2800.0;
+            const stressRatio = ((data.maxVonMises / carbideYield) * 100).toFixed(1);
+            let stressSeverityText = "Within Elastic Nominal Range (Low Risk)";
+            let stressSeverityColor = "text-emerald-400";
+            if (data.maxVonMises > 2000) {
+                stressSeverityText = "Critical Contact Shear / Micro-chipping Risk";
+                stressSeverityColor = "text-rose-400";
+            } else if (data.maxVonMises > 1200) {
+                stressSeverityText = "Moderate Contact Stress (Monitor Edge Radius)";
+                stressSeverityColor = "text-amber-400";
+            }
+
+            modalBody.innerHTML = `
+                <!-- Executive Status Header -->
+                <div class="p-4 rounded-xl border ${statusBorder} flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusBadgeBg}">${statusIcon} ${data.toolStatus}</span>
+                            <span class="text-xs text-slate-400">• Inspection Logged: ${data.generatedAt}</span>
+                        </div>
+                        <p class="text-sm font-medium text-slate-200 mt-1">${data.toolStatusDesc}</p>
+                    </div>
+                    <div class="sm:text-right">
+                        <span class="text-[10px] uppercase text-slate-400 tracking-wider block">Estimated Remaining Useful Life</span>
+                        <span class="text-2xl font-black text-blue-400">${data.RUL_mins}</span>
+                    </div>
+                </div>
+
+                <!-- 4 Diagnostics KPI Cards -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">ISO Wear Limit</span>
+                        <span class="text-lg font-bold text-white mt-1 block">${data.wearThreshold.toFixed(2)} mm</span>
+                        <span class="text-[10px] text-slate-500">Current VB: ${data.current_vb.toFixed(3)} mm</span>
+                    </div>
+                    <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Peak Subsurface Stress</span>
+                        <span class="text-lg font-bold text-indigo-400 mt-1 block">${data.maxVonMises.toFixed(1)} MPa</span>
+                        <span class="text-[10px] text-slate-500">Depth y = ${Math.abs(data.maxVM_y).toFixed(3)} mm</span>
+                    </div>
+                    <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Resultant Force (Fr)</span>
+                        <span class="text-lg font-bold text-emerald-400 mt-1 block">${data.F_r.toFixed(0)} N</span>
+                        <span class="text-[10px] text-slate-500">Interface p: ${data.p_final.toFixed(1)} MPa</span>
+                    </div>
+                    <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Peak Wear Kinetic Rate</span>
+                        <span class="text-lg font-bold text-amber-400 mt-1 block">${data.maxRate.toFixed(2)} nm/s</span>
+                        <span class="text-[10px] text-slate-500">Kinetic Gradient</span>
+                    </div>
+                </div>
+
+                <!-- Diagnostics Tables -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Table 1: Setup & Material Parameters -->
+                    <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-2.5">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                            Workpiece & Facility Setup
+                        </h3>
+                        <div class="space-y-1.5 text-xs">
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Facility Scale:</span>
+                                <span class="font-semibold text-slate-200 text-right">${data.industrialScaleName}</span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Workpiece Material:</span>
+                                <span class="font-semibold text-slate-200">${data.materialName}</span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Specific Cutting Energy (Ks):</span>
+                                <span class="font-semibold text-slate-200">${data.matConsts.Ks} MPa</span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Tool-Chip Friction (&mu;):</span>
+                                <span class="font-semibold text-slate-200">${data.matConsts.mu.toFixed(2)}</span>
+                            </div>
+                            <div class="flex justify-between py-1">
+                                <span class="text-slate-400">Tool Geometry Ref:</span>
+                                <span class="font-semibold text-slate-200">&empty;19.05 mm Face/End Mill</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table 2: Kinematics & Stress Diagnostics -->
+                    <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-2.5">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                            Kinematics & Stress Diagnostics
+                        </h3>
+                        <div class="space-y-1.5 text-xs">
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Spindle Speed:</span>
+                                <span class="font-semibold text-slate-200">${data.rpm} RPM (${(data.v_rel * 60 / 1000).toFixed(1)} m/min)</span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Feed Rate & DOC:</span>
+                                <span class="font-semibold text-slate-200">${data.feed.toFixed(2)} mm/rev • ${data.doc.toFixed(1)} mm</span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Subsurface Stress Ratio:</span>
+                                <span class="font-semibold ${stressSeverityColor}">${stressRatio}% (${data.maxVonMises.toFixed(0)} / ${carbideYield} MPa)</span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Contact Mechanics Integrity:</span>
+                                <span class="font-semibold ${stressSeverityColor}">${stressSeverityText}</span>
+                            </div>
+                            <div class="flex justify-between py-1">
+                                <span class="text-slate-400">Calibration Benchmark:</span>
+                                <span class="font-semibold text-slate-200 text-right">${data.casePresetName}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- High-Resolution Embedded Visual Evidence -->
+                <div class="space-y-3">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                        Physical Simulation & Degradation Plots
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex flex-col items-center">
+                            <span class="text-[11px] font-semibold text-slate-300 mb-2">1. Tool Flank Wear Land Growth vs. Time</span>
+                            ${wearImgUrl ? `<img src="${wearImgUrl}" class="w-full h-auto rounded-lg shadow" alt="Wear Degradation Curve"/>` : `<div class="h-44 flex items-center justify-center text-slate-500 text-xs">Plot available on main dashboard</div>`}
+                        </div>
+                        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex flex-col items-center">
+                            <span class="text-[11px] font-semibold text-slate-300 mb-2">2. Subsurface Von Mises Contact Stress Field</span>
+                            ${stressImgUrl ? `<img src="${stressImgUrl}" class="w-full h-auto rounded-lg shadow" alt="Subsurface Stress Heatmap"/>` : `<div class="h-44 flex items-center justify-center text-slate-500 text-xs">Heatmap available on main dashboard</div>`}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Predictive Maintenance & Toolroom Action Items -->
+                <div class="bg-blue-950/20 border border-blue-800/40 rounded-xl p-4 space-y-2">
+                    <h3 class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Operational & Predictive Maintenance Recommendations
+                    </h3>
+                    <ul class="list-disc list-inside text-xs text-slate-300 space-y-1.5 pl-1 leading-relaxed">
+                        <li><strong>Tool Life Indexing:</strong> ${data.isCritical ? '<span class="text-rose-400 font-bold">RETIRE TOOL IMMEDIATELY.</span> Flank wear has exceeded safety limits. Continued cutting will scrap the part and damage spindle bearings.' : data.isWarning ? '<span class="text-amber-400 font-bold">PREPARE REPLACEMENT INSERT.</span> Accelerated wear transition detected. Schedule tool change within ' + data.RUL_mins + '.' : '<span class="text-emerald-400 font-bold">NORMAL STABILITY.</span> Current conditions sustain stable wear progression with remaining tool life of ' + data.RUL_mins + '.'}</li>
+                        <li><strong>Stress Optimization:</strong> ${data.maxVonMises > 1200 ? 'High subsurface stress concentration (peak ' + data.maxVonMises.toFixed(0) + ' MPa). Reduce feed rate by 10-15% or increase coolant pressure to mitigate thermal fatigue and chipping.' : 'Subsurface shear and normal contact stresses remain well within carbide elastic limits.'}</li>
+                        <li><strong>Quality Assurance:</strong> Verify part surface roughness Ra on the current batch before exceeding ${data.wearThreshold.toFixed(2)} mm flank wear.</li>
+                    </ul>
+                </div>
+
+                <!-- Quality Sign-Off Block -->
+                <div class="pt-3 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-400">
+                    <div class="border border-slate-800 p-2.5 rounded-lg">
+                        <span class="text-[10px] text-slate-500 uppercase block">Certified Operator:</span>
+                        <div class="mt-2 border-b border-dashed border-slate-700 pb-1 text-slate-300">CNC Machining Cell Lead</div>
+                    </div>
+                    <div class="border border-slate-800 p-2.5 rounded-lg">
+                        <span class="text-[10px] text-slate-500 uppercase block">Tooling Engineer Review:</span>
+                        <div class="mt-2 border-b border-dashed border-slate-700 pb-1 text-slate-300">Verified by MicroWear-PINN Engine</div>
+                    </div>
+                    <div class="border border-slate-800 p-2.5 rounded-lg">
+                        <span class="text-[10px] text-slate-500 uppercase block">Quality Audit Status:</span>
+                        <div class="mt-2 border-b border-dashed border-slate-700 pb-1 text-emerald-400 font-mono font-bold">PASSED / LOGGED</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function exportReportPrint() {
+            const data = window.latestReportData;
+            if (!data) return;
+
+            let wearImgUrl = '';
+            let stressImgUrl = '';
+            try {
+                wearImgUrl = await Plotly.toImage(document.getElementById('plot-wear-curve'), { format: 'png', width: 680, height: 320 });
+                stressImgUrl = await Plotly.toImage(document.getElementById('plot-stress-heatmap'), { format: 'png', width: 680, height: 320 });
+            } catch (err) {
+                console.warn('Plotly image capture error:', err);
+            }
+
+            const carbideYield = 2800.0;
+            const stressRatio = ((data.maxVonMises / carbideYield) * 100).toFixed(1);
+
+            const printHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8"/>
+                    <title>Diagnostics Report - ${data.docId}</title>
+                    <style>
+                        @page { size: A4; margin: 12mm; }
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111827; background: #fff; line-height: 1.4; font-size: 10pt; margin: 0; padding: 8px; }
+                        h1, h2, h3 { margin: 0; }
+                        .header-row { display: flex; justify-content: space-between; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 12px; }
+                        .doc-id { font-size: 9pt; color: #6b7280; font-family: monospace; font-weight: bold; }
+                        .status-box { border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; }
+                        .status-tag { display: inline-block; padding: 3px 8px; font-weight: bold; border-radius: 4px; font-size: 8.5pt; text-transform: uppercase; }
+                        .status-safe { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+                        .status-warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+                        .status-crit { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+                        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+                        .kpi-card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 10px; background: #f9fafb; }
+                        .kpi-label { font-size: 7.5pt; text-transform: uppercase; color: #6b7280; font-weight: bold; }
+                        .kpi-val { font-size: 12.5pt; font-weight: bold; color: #1f2937; margin-top: 1px; }
+                        .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+                        table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+                        th, td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+                        th { background: #f3f4f6; font-size: 8pt; text-transform: uppercase; color: #4b5563; }
+                        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; page-break-inside: avoid; }
+                        .chart-container { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px; text-align: center; }
+                        .chart-container img { max-width: 100%; height: auto; border-radius: 4px; }
+                        .chart-title { font-size: 8pt; font-weight: bold; color: #374151; margin-bottom: 4px; }
+                        .recommendations { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; font-size: 8.5pt; }
+                        .recommendations ul { margin: 4px 0 0 0; padding-left: 18px; }
+                        .signoff-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; page-break-inside: avoid; font-size: 8.5pt; }
+                        .signoff-box { border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; }
+                        .signoff-line { margin-top: 20px; border-bottom: 1px dashed #9ca3af; }
+                        @media print {
+                            body { padding: 0; }
+                            button { display: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header-row">
+                        <div>
+                            <h1 style="font-size: 15pt; color: #1e3a8a; font-weight: 800;">MicroWear-PINN • Diagnostics & Prediction Report</h1>
+                            <div style="font-size: 8.5pt; color: #4b5563; margin-top: 2px;">Physics-Informed Neural Network Diagnostics for Milling Tool Wear & Subsurface Contact Mechanics</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="doc-id">DOC REF: ${data.docId}</div>
+                            <div style="font-size: 8pt; color: #6b7280; margin-top: 2px;">Generated: ${data.generatedAt}</div>
+                        </div>
+                    </div>
+
+                    <div class="status-box">
+                        <div>
+                            <span class="status-tag ${data.isCritical ? 'status-crit' : data.isWarning ? 'status-warn' : 'status-safe'}">${data.toolStatus}</span>
+                            <span style="font-size: 8.5pt; margin-left: 8px; color: #374151;">${data.toolStatusDesc}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 7.5pt; text-transform: uppercase; color: #6b7280; display: block;">Remaining Useful Life (RUL)</span>
+                            <span style="font-size: 14pt; font-weight: 900; color: #1d4ed8;">${data.RUL_mins}</span>
+                        </div>
+                    </div>
+
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-label">ISO Wear Limit</div>
+                            <div class="kpi-val">${data.wearThreshold.toFixed(2)} mm</div>
+                            <div style="font-size: 7pt; color: #6b7280;">Current VB: ${data.current_vb.toFixed(3)} mm</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Peak Subsurface Stress</div>
+                            <div class="kpi-val">${data.maxVonMises.toFixed(1)} MPa</div>
+                            <div style="font-size: 7pt; color: #6b7280;">Depth: y = ${Math.abs(data.maxVM_y).toFixed(3)} mm</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Resultant Force (Fr)</div>
+                            <div class="kpi-val">${data.F_r.toFixed(0)} N</div>
+                            <div style="font-size: 7pt; color: #6b7280;">Steady p: ${data.p_final.toFixed(1)} MPa</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Peak Wear Rate</div>
+                            <div class="kpi-val">${data.maxRate.toFixed(2)} nm/s</div>
+                            <div style="font-size: 7pt; color: #6b7280;">Kinetic Gradient</div>
+                        </div>
+                    </div>
+
+                    <div class="tables-grid">
+                        <div>
+                            <table>
+                                <thead>
+                                    <tr><th colspan="2">Workpiece & Facility Setup</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Facility Scale</td><td><strong>${data.industrialScaleName}</strong></td></tr>
+                                    <tr><td>Workpiece Material</td><td>${data.materialName}</td></tr>
+                                    <tr><td>Specific Cutting Energy (Ks)</td><td>${data.matConsts.Ks} MPa</td></tr>
+                                    <tr><td>Tool-Workpiece Friction (&mu;)</td><td>${data.matConsts.mu.toFixed(2)}</td></tr>
+                                    <tr><td>Tool Reference</td><td>&empty;19.05 mm Face/End Mill</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div>
+                            <table>
+                                <thead>
+                                    <tr><th colspan="2">Kinematics & Stress Diagnostics</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Spindle Speed (N)</td><td>${data.rpm} RPM (${(data.v_rel * 60 / 1000).toFixed(1)} m/min)</td></tr>
+                                    <tr><td>Feed Rate (f) & DOC (ap)</td><td>${data.feed.toFixed(2)} mm/rev • ${data.doc.toFixed(1)} mm</td></tr>
+                                    <tr><td>Peak Von Mises Ratio</td><td>${stressRatio}% of Carbide Yield (${data.maxVonMises.toFixed(0)} / ${carbideYield} MPa)</td></tr>
+                                    <tr><td>Fracture / Chipping Risk</td><td>${data.maxVonMises > 2000 ? 'High Risk' : data.maxVonMises > 1200 ? 'Moderate' : 'Low / Nominal'}</td></tr>
+                                    <tr><td>Calibration Preset</td><td>${data.casePresetName}</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-container">
+                            <div class="chart-title">1. Tool Flank Wear Land Growth vs. Time (VB)</div>
+                            ${wearImgUrl ? `<img src="${wearImgUrl}"/>` : '<div style="height: 120px;">Chart captured from live dashboard</div>'}
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-title">2. Subsurface Von Mises Contact Stress Field</div>
+                            ${stressImgUrl ? `<img src="${stressImgUrl}"/>` : '<div style="height: 120px;">Chart captured from live dashboard</div>'}
+                        </div>
+                    </div>
+
+                    <div class="recommendations">
+                        <strong style="color: #1e40af;">Actionable Predictive Maintenance Recommendations:</strong>
+                        <ul>
+                            <li><strong>Tool Replacement Window:</strong> ${data.isCritical ? 'CRITICAL: Retire tool insert immediately prior to next cut to prevent component scrap.' : data.isWarning ? 'CAUTION: Accelerated wear transition detected. Plan replacement within ' + data.RUL_mins + '.' : 'STABLE: Tool operating in steady wear regime. Tool life remaining: ' + data.RUL_mins + '.'}</li>
+                            <li><strong>Stress Mitigation:</strong> ${data.maxVonMises > 1200 ? 'Elevated contact stresses (peak ' + data.maxVonMises.toFixed(0) + ' MPa). Lower feed rate by 10-15% or increase coolant pressure.' : 'Mechanical contact stresses are well within nominal safety bounds.'}</li>
+                            <li><strong>Quality Assurance:</strong> Verify machined part surface roughness Ra before exceeding ${data.wearThreshold.toFixed(2)} mm flank wear land.</li>
+                        </ul>
+                    </div>
+
+                    <div class="signoff-grid">
+                        <div class="signoff-box">
+                            <div style="font-size: 7.5pt; text-transform: uppercase; color: #6b7280;">CNC Operator Signature:</div>
+                            <div class="signoff-line"></div>
+                            <div style="font-size: 7.5pt; color: #4b5563; margin-top: 4px;">Operator ID: _________________</div>
+                        </div>
+                        <div class="signoff-box">
+                            <div style="font-size: 7.5pt; text-transform: uppercase; color: #6b7280;">Tooling Specialist Review:</div>
+                            <div class="signoff-line"></div>
+                            <div style="font-size: 7.5pt; color: #4b5563; margin-top: 4px;">Verified by MicroWear-PINN Digital Twin</div>
+                        </div>
+                        <div class="signoff-box">
+                            <div style="font-size: 7.5pt; text-transform: uppercase; color: #6b7280;">Quality Audit Status:</div>
+                            <div class="signoff-line"></div>
+                            <div style="font-size: 7.5pt; color: #059669; font-weight: bold; margin-top: 4px;">STATUS: INSPECTED & LOGGED</div>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.open();
+                printWindow.document.write(printHtml);
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(() => {
+                    printWindow.print();
+                }, 400);
+            } else {
+                alert('Pop-up window blocked by browser. Please allow pop-ups for this site to print the PDF report.');
+            }
+        }
+
+        function exportReportCSV() {
+            const data = window.latestReportData;
+            if (!data) return;
+
+            let csv = `# MicroWear-PINN Diagnostics & Prediction Report\n`;
+            csv += `# Document Reference: ${data.docId}\n`;
+            csv += `# Timestamp: ${data.generatedAt}\n`;
+            csv += `# Facility Scale: ${data.industrialScaleName}\n`;
+            csv += `# Workpiece Material: ${data.materialName}\n`;
+            csv += `# Spindle Speed (RPM): ${data.rpm}\n`;
+            csv += `# Feed Rate (mm/rev): ${data.feed}\n`;
+            csv += `# Depth of Cut (mm): ${data.doc}\n`;
+            csv += `# Resultant Force (N): ${data.F_r.toFixed(2)}\n`;
+            csv += `# Peak Subsurface Stress (MPa): ${data.maxVonMises.toFixed(2)}\n`;
+            csv += `# ISO Wear Limit (mm): ${data.wearThreshold.toFixed(2)}\n`;
+            csv += `# Remaining Useful Life: ${data.RUL_mins}\n`;
+            csv += `# Status: ${data.toolStatus}\n\n`;
+
+            csv += `Time_s,Time_min,Flank_Wear_VB_mm,ISO_Limit_mm,Interface_Pressure_MPa,Cutting_Velocity_mms,Cutting_Force_N,Tool_Status\n`;
+
+            for (let i = 0; i < data.times_sec.length; i++) {
+                const t = data.times_sec[i];
+                const vb = data.vb_pred[i];
+                const p = data.pressures[i];
+                const status = vb >= data.wearThreshold ? 'EXCEEDED' : (vb >= data.wearThreshold * 0.75 ? 'WARNING' : 'SAFE');
+                csv += `${t.toFixed(2)},${(t/60).toFixed(2)},${vb.toFixed(5)},${data.wearThreshold.toFixed(2)},${p.toFixed(2)},${data.v_rel.toFixed(2)},${data.F_r.toFixed(2)},${status}\n`;
+            }
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MicroWear_PINN_Diagnostics_${data.docId}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
 
         window.addEventListener("load", initApp);

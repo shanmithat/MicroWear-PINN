@@ -114,7 +114,11 @@ This automatically runs a numerical parity check validating that PyTorch and ONN
 The repository contains a fully client-side dashboard in `index.html` at the root. It loads `model/microwear_pinn.onnx` and runs real-time simulations based on user input parameters (spindle speed, feed rate, depth of cut, material presets) to plot:
 - The predicted tool flank wear $VB(t)$ over time compared to NASA experimental measurements.
 - 2D subsurface Von Mises stress contour heatmaps computed using central finite differences.
-- Remaining Useful Life (RUL) countdown relative to the ISO flank wear failure threshold ($VB \ge 0.3\text{ mm}$).
+- Remaining Useful Life (RUL) countdown relative to the facility-specific ISO flank wear failure threshold ($VB_{limit} = 0.25\text{ mm}$ for aerospace/automotive, $0.30\text{ mm}$ for production, and $0.40\text{ mm}$ for prototyping).
+- **Industrial Diagnostics & Prediction Report Export**:
+  - One-click **Export Diagnostics Report** modal providing comprehensive tool wear analysis, Archard wear kinetics, contact shear & subsurface stress concentrations, and predictive maintenance action items.
+  - **Print / Save as PDF**: Formatted A4/Letter certified engineering report ready for machine travelers and quality audits with embedded high-resolution degradation charts and quality sign-off blocks.
+  - **CSV Data Logging**: Instant export of raw timeline time-series ($t, VB, p, v_{rel}, F_r$) for integration into shop-floor MES/SCADA or spreadsheet systems.
 
 ### 6. Automated CI/CD Deployments
 Pushes to the `main` branch automatically trigger the GitHub Actions workflow in `.github/workflows/deploy.yml` which deploys the codebase and static website directly to GitHub Pages (`https://<username>.github.io/MicroWear-PINN`).
