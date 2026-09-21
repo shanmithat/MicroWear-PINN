@@ -105,17 +105,32 @@ class MicroWearPINN(nn.Module):
         self.p_ref = float(physics_cfg.get('p_ref', 1000.0))
         self.v_ref = float(physics_cfg.get('v_ref', 5000.0))
         
-        # 1. Wear Coefficient Sub-network (input: x)
+        # Tool cutting geometry: clearance / relief angle (nominal 11 deg for KC710 milling inserts)
+        self.alpha_clearance_deg = float(physics_cfg.get('alpha_clearance_deg', 11.0))
+        self.tan_alpha = float(np.tan(np.radians(self.alpha_clearance_deg)))
+        
+        # 1. Wear Coefficient Sub-network / Parameterization
         kw_cfg = model_cfg['k_w']
-        self.k_w_net = CoordinateNet(
-            in_dim=1,
-            out_dim=1,
-            hidden_layers=kw_cfg['layers'],
-            use_rff=kw_cfg['use_rff'],
-            rff_scale=kw_cfg['rff_scale'],
-            rff_features=kw_cfg['rff_features'],
-            activation=kw_cfg['activation']
-        )
+        self.kw_mode = kw_cfg.get('mode', 'spatial') # 'spatial' or 'scalar'
+        
+        if self.kw_mode == 'scalar':
+            # Strictly positive scalar parameterization: kw = softplus(param) + eps
+            k_init = float(physics_cfg.get('k_w_init', 2.0e-7))
+            # Inverse softplus for initial parameter
+            inv_sp = np.log(np.exp(k_init) - 1.0) if k_init > 1.0 else np.log(k_init)
+            self.kw_raw_param = nn.Parameter(torch.tensor([inv_sp], dtype=torch.float32))
+            self.k_w_net = None
+        else:
+            self.kw_raw_param = None
+            self.k_w_net = CoordinateNet(
+                in_dim=1,
+                out_dim=1,
+                hidden_layers=kw_cfg.get('layers', [64, 64]),
+                use_rff=kw_cfg.get('use_rff', True),
+                rff_scale=float(kw_cfg.get('rff_scale', 1.0)),
+                rff_features=int(kw_cfg.get('rff_features', 16)),
+                activation=kw_cfg.get('activation', 'tanh')
+            )
         
         # 2. Surface Height Profile Sub-network
         h_cfg = model_cfg['h']
@@ -123,11 +138,11 @@ class MicroWearPINN(nn.Module):
         self.h_net = CoordinateNet(
             in_dim=h_in_dim,
             out_dim=1,
-            hidden_layers=h_cfg['layers'],
-            use_rff=h_cfg['use_rff'],
-            rff_scale=h_cfg['rff_scale'],
-            rff_features=h_cfg['rff_features'],
-            activation=h_cfg['activation']
+            hidden_layers=h_cfg.get('layers', [128, 128]),
+            use_rff=h_cfg.get('use_rff', True),
+            rff_scale=float(h_cfg.get('rff_scale', 2.0)),
+            rff_features=int(h_cfg.get('rff_features', 32)),
+            activation=h_cfg.get('activation', 'tanh')
         )
         
         # 3. Airy Stress Function Sub-network
@@ -136,17 +151,42 @@ class MicroWearPINN(nn.Module):
         self.phi_net = CoordinateNet(
             in_dim=phi_in_dim,
             out_dim=1,
-            hidden_layers=phi_cfg['layers'],
-            use_rff=phi_cfg['use_rff'],
-            rff_scale=phi_cfg['rff_scale'],
-            rff_features=phi_cfg['rff_features'],
-            activation=phi_cfg['activation']
+            hidden_layers=phi_cfg.get('layers', [128, 128, 128]),
+            use_rff=phi_cfg.get('use_rff', True),
+            rff_scale=float(phi_cfg.get('rff_scale', 1.5)),
+            rff_features=int(phi_cfg.get('rff_features', 32)),
+            activation=phi_cfg.get('activation', 'tanh')
         )
 
     def predict_k_w(self, x: torch.Tensor) -> torch.Tensor:
-        """Predict wear coefficient k_w at spatial coordinate x (N, 1)."""
-        x_norm = x / self.L_ref
-        return self.k_w_net(x_norm)
+        """
+        Predict wear coefficient k_w at spatial coordinate x (N, 1).
+        Enforces strict positivity: k_w > 0 via softplus activation.
+        Supports both scalar identification (for single-point VB) and spatial identification.
+        """
+        if self.kw_mode == 'scalar':
+            # Positive scalar broadcasted to (N, 1)
+            kw_val = torch.nn.functional.softplus(self.kw_raw_param) + 1.0e-10
+            return kw_val.expand(x.shape[0], 1)
+        else:
+            x_norm = x / self.L_ref
+            raw_out = self.k_w_net(x_norm)
+            # Guarantee k_w(x) > 0 strictly
+            return torch.nn.functional.softplus(raw_out) + 1.0e-10
+
+    def vb_to_wear_depth(self, vb: torch.Tensor) -> torch.Tensor:
+        """
+        Converts flank wear land width VB (mm) to normal wear depth h_w (mm)
+        using cutting tool clearance angle: h_w = VB * tan(alpha_0).
+        """
+        return vb * self.tan_alpha
+
+    def wear_depth_to_vb(self, h: torch.Tensor) -> torch.Tensor:
+        """
+        Converts surface profile height h (where wear depth = -h) to flank wear land VB:
+        VB = -h / tan(alpha_0).
+        """
+        return -h / self.tan_alpha
 
     def predict_h(self, x: torch.Tensor, t: torch.Tensor, 
                   p: Optional[torch.Tensor] = None, v_rel: Optional[torch.Tensor] = None) -> torch.Tensor:

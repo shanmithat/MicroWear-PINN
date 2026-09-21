@@ -13,12 +13,14 @@ physics:
   p_ref: 2500.0 # Reference pressure (MPa) for scaling inputs
   v_ref: 5000.0 # Reference velocity (mm/s) for scaling inputs
   k_w_init: 2.0e-7 # Expected wear coefficient scale
+  alpha_clearance_deg: 11.0 # Tool flank clearance angle (degrees)
 
 # Sub-Network Configurations
 model:
   device: "cpu"
   parameterized: true # Enable (p, v_rel) parameters as inputs
   k_w:
+    mode: "scalar"    # "scalar" for single-point VB calibration (unique identifiability), or "spatial"
     use_rff: true
     rff_scale: 1.5
     rff_features: 16
@@ -40,15 +42,15 @@ model:
 # Collocation Sampling Settings
 sampling:
   method: "sobol"
-  n_interior: 5000
-  n_boundary: 1000
-  n_initial: 500
+  n_interior: 2000
+  n_boundary: 500
+  n_initial: 200
   n_data: 100      # Sparse calibration data points
 
 # Training Hyperparameters
 training:
-  epochs_adam: 1000
-  epochs_lbfgs: 150
+  epochs_adam: 500
+  epochs_lbfgs: 15
   lr_adam: 0.001
   lr_lbfgs: 0.2
   weight_decay: 1.0e-5
@@ -66,7 +68,7 @@ training:
   adaptive_weighting:
     enabled: true
     method: "softadapt"
-    beta: -0.1
+    beta: 0.1
     update_every: 10
 
 # Benchmark / Run Settings

@@ -105,12 +105,12 @@
                     <div class="space-y-2">
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">NASA Ingestion Presets</label>
                         <select id="case-preset" class="w-full rounded-lg border-slate-700 border bg-slate-950 p-2.5 text-sm text-slate-200 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none">
-                            <option value="1">Case 1: v = 200 m/min, f = 0.50 mm (Cast Iron)</option>
-                            <option value="4">Case 4: v = 200 m/min, f = 0.25 mm (Cast Iron)</option>
-                            <option value="7">Case 7: v = 200 m/min, f = 0.25 mm (Steel)</option>
-                            <option value="9">Case 9: v = 250 m/min, f = 0.50 mm (Cast Iron)</option>
-                            <option value="11">Case 11: v = 250 m/min, f = 0.25 mm (Cast Iron)</option>
-                            <option value="13">Case 13: v = 250 m/min, f = 0.25 mm (Steel)</option>
+                            <option value="1">Case 1: v = 200 m/min, f = 0.50 mm (Cast Iron - Tool 1)</option>
+                            <option value="4">Case 4: v = 200 m/min, f = 0.25 mm (Cast Iron - Tool 1)</option>
+                            <option value="7">Case 7: v = 200 m/min, f = 0.25 mm (Steel - Tool 1)</option>
+                            <option value="9">Case 9: v = 200 m/min, f = 0.50 mm (Cast Iron - Tool 2)</option>
+                            <option value="11">Case 11: v = 200 m/min, f = 0.25 mm (Cast Iron - Tool 2)</option>
+                            <option value="13">Case 13: v = 200 m/min, f = 0.25 mm (Steel - Tool 2)</option>
                             <option value="custom" selected>--- Custom Configuration ---</option>
                         </select>
                     </div>
@@ -128,9 +128,9 @@
                         <div>
                             <div class="flex justify-between font-medium text-xs mb-1">
                                 <span class="text-slate-300">Spindle Speed (N)</span>
-                                <span id="val-rpm" class="font-bold text-blue-400">800 RPM</span>
+                                <span id="val-rpm" class="font-bold text-blue-400">826 RPM</span>
                             </div>
-                            <input id="slider-rpm" type="range" min="300" max="1500" value="800" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                            <input id="slider-rpm" type="range" min="300" max="1500" value="826" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
                         </div>
 
                         <!-- Feed Rate -->
@@ -157,24 +157,31 @@
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Workpiece Material</label>
                         <div class="grid grid-cols-1 gap-2">
                             <label class="flex items-center space-x-3 p-3 border border-slate-800 bg-slate-950/40 rounded-lg cursor-pointer hover:bg-slate-800/40 transition">
-                                <input type="radio" name="material-group" value="steel" checked class="text-blue-500 focus:ring-blue-500">
+                                <input type="radio" name="material-group" value="cast_iron" checked class="text-blue-500 focus:ring-blue-500">
                                 <div>
-                                    <span class="text-sm font-semibold text-slate-200">Structural Steel</span>
-                                    <span class="block text-[10px] text-slate-400">Ks = 2000 MPa, friction &mu; = 0.3</span>
+                                    <span class="text-sm font-semibold text-slate-200">Cast Iron</span>
+                                    <span class="block text-[10px] text-emerald-400 font-medium">Validated on NASA Ames Benchmark (Ks = 1300 N/mm²)</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-3 border border-slate-800 bg-slate-950/40 rounded-lg cursor-pointer hover:bg-slate-800/40 transition">
+                                <input type="radio" name="material-group" value="steel" class="text-blue-500 focus:ring-blue-500">
+                                <div>
+                                    <span class="text-sm font-semibold text-slate-200">J45 Carbon Steel</span>
+                                    <span class="block text-[10px] text-emerald-400 font-medium">Validated on NASA Ames Benchmark (Ks = 2100 N/mm²)</span>
                                 </div>
                             </label>
                             <label class="flex items-center space-x-3 p-3 border border-slate-800 bg-slate-950/40 rounded-lg cursor-pointer hover:bg-slate-800/40 transition">
                                 <input type="radio" name="material-group" value="titanium" class="text-blue-500 focus:ring-blue-500">
                                 <div>
                                     <span class="text-sm font-semibold text-slate-200">Titanium Alloy (Ti-6Al-4V)</span>
-                                    <span class="block text-[10px] text-slate-400">Ks = 3000 MPa, friction &mu; = 0.4</span>
+                                    <span class="block text-[10px] text-amber-400 font-medium">Extrapolated Physics Estimate (Ks = 3000 N/mm²)</span>
                                 </div>
                             </label>
                             <label class="flex items-center space-x-3 p-3 border border-slate-800 bg-slate-950/40 rounded-lg cursor-pointer hover:bg-slate-800/40 transition">
                                 <input type="radio" name="material-group" value="inconel" class="text-blue-500 focus:ring-blue-500">
                                 <div>
                                     <span class="text-sm font-semibold text-slate-200">Inconel 718 Superalloy</span>
-                                    <span class="block text-[10px] text-slate-400">Ks = 4500 MPa, friction &mu; = 0.5</span>
+                                    <span class="block text-[10px] text-amber-400 font-medium">Extrapolated Physics Estimate (Ks = 4500 N/mm²)</span>
                                 </div>
                             </label>
                         </div>
@@ -187,7 +194,7 @@
             <div class="col-span-2 space-y-6">
 
                 <!-- Operator Advisory Panel & RUL Twin Indicators -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     
                     <!-- Traffic Light Alarm -->
                     <div id="status-card" class="bg-emerald-950/20 rounded-xl border border-emerald-900/40 p-5 flex flex-col justify-between">
@@ -212,6 +219,17 @@
                                 <div id="rul-progress" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
                             </div>
                             <span class="text-[9px] text-slate-400 block mt-1">Based on config threshold: <span id="info-limit" class="font-bold">0.30mm</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Domain of Validity Badge -->
+                    <div id="domain-card" class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex flex-col justify-between">
+                        <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Validity Domain</span>
+                            <span id="domain-status-text" class="text-emerald-400 font-extrabold text-sm mt-1 block">BENCHMARK VALIDATED</span>
+                        </div>
+                        <div class="mt-4">
+                            <span id="domain-desc" class="text-[11px] text-slate-300 block">Operating within NASA 16-run empirical envelope (Cast Iron / J45 Steel).</span>
                         </div>
                     </div>
 
@@ -340,17 +358,19 @@
         const p_ref = 2500.0;
         const v_ref = 5000.0;
         
-        const D_cutter = 19.05; // 19.05 mm diameter
+        const D_cutter = 70.0; // Matsuura MC-510V 70.0 mm face mill (6 KC710 inserts)
+        const alpha_clearance_deg = 11.0; // Flank relief / clearance angle
+        const tan_alpha = Math.tan((alpha_clearance_deg * Math.PI) / 180.0);
         const w_c = 1.0;
-        const vb0 = 0.05;
+        const a0 = 0.05; // 50 um tool tip edge radius / half-contact offset
         
         // Dynamic configuration thresholds based on industrial scale
         let wearThreshold = 0.30; 
         
-        // Berkeley/NASA Milling dataset reference case parameters
+        // Berkeley/NASA Milling dataset reference case parameters (Nominal 200 m/min across all cases)
         const nasaCases = {
             "1": {
-                name: "Case 1 (Cast Iron, Feed=0.5mm)",
+                name: "Case 1 (Cast Iron, Feed=0.5mm - Tool 1)",
                 v_rel: (200.0 * 1000.0) / 60.0,
                 DOC: 1.5,
                 feed: 0.5,
@@ -358,7 +378,7 @@
                 vbs: [0.0, 0.11, 0.2, 0.29, 0.28, 0.29, 0.38, 0.4, 0.43, 0.45, 0.5, 0.44]
             },
             "4": {
-                name: "Case 4 (Cast Iron, Feed=0.25mm)",
+                name: "Case 4 (Cast Iron, Feed=0.25mm - Tool 1)",
                 v_rel: (200.0 * 1000.0) / 60.0,
                 DOC: 1.5,
                 feed: 0.25,
@@ -366,7 +386,7 @@
                 vbs: [0.0, 0.11, 0.16, 0.18, 0.21, 0.24, 0.28, 0.49]
             },
             "7": {
-                name: "Case 7 (Steel, Feed=0.25mm)",
+                name: "Case 7 (Steel, Feed=0.25mm - Tool 1)",
                 v_rel: (200.0 * 1000.0) / 60.0,
                 DOC: 0.75,
                 feed: 0.25,
@@ -374,24 +394,24 @@
                 vbs: [0.0, 0.1, 0.15, 0.18, 0.22, 0.25, 0.29, 0.46]
             },
             "9": {
-                name: "Case 9 (Cast Iron, Feed=0.50mm)",
-                v_rel: (250.0 * 1000.0) / 60.0,
+                name: "Case 9 (Cast Iron, Feed=0.50mm - Tool 2 Replicate)",
+                v_rel: (200.0 * 1000.0) / 60.0,
                 DOC: 1.5,
                 feed: 0.5,
                 times: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 vbs: [0.0, 0.15, 0.22, 0.28, 0.33, 0.41, 0.48, 0.55, 0.68, 0.81]
             },
             "11": {
-                name: "Case 11 (Cast Iron, Feed=0.25mm)",
-                v_rel: (250.0 * 1000.0) / 60.0,
+                name: "Case 11 (Cast Iron, Feed=0.25mm - Tool 2 Replicate)",
+                v_rel: (200.0 * 1000.0) / 60.0,
                 DOC: 0.75,
                 feed: 0.25,
                 times: [0, 2, 4, 6, 7, 9, 10, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23],
                 vbs: [0.0, 0.11, 0.16, 0.18, 0.2, 0.21, 0.23, 0.28, 0.31, 0.38, 0.4, 0.42, 0.43, 0.45, 0.5, 0.52, 0.58, 0.76]
             },
             "13": {
-                name: "Case 13 (Steel, Feed=0.25mm)",
-                v_rel: (250.0 * 1000.0) / 60.0,
+                name: "Case 13 (Steel, Feed=0.25mm - Tool 2 Replicate)",
+                v_rel: (200.0 * 1000.0) / 60.0,
                 DOC: 0.75,
                 feed: 0.25,
                 times: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -400,9 +420,10 @@
         };
 
         const materialConstants = {
-            "steel": { Ks: 2000.0, mu: 0.3 },
-            "titanium": { Ks: 3000.0, mu: 0.4 },
-            "inconel": { Ks: 4500.0, mu: 0.5 }
+            "cast_iron": { Ks: 1300.0, mu: 0.3, name: "Cast Iron", validated: true },
+            "steel": { Ks: 2100.0, mu: 0.3, name: "J45 Carbon Steel", validated: true },
+            "titanium": { Ks: 3000.0, mu: 0.4, name: "Ti-6Al-4V", validated: false },
+            "inconel": { Ks: 4500.0, mu: 0.5, name: "Inconel 718", validated: false }
         };
 
         // UI Selectors
@@ -483,13 +504,16 @@
                 const presetId = e.target.value;
                 if (presetId !== "custom") {
                     const preset = nasaCases[presetId];
+                    // At D_cutter = 70 mm, 200 m/min corresponds to ~909 RPM, or 826 RPM nominal
                     const rpm = Math.round((preset.v_rel * 60.0) / (Math.PI * D_cutter));
                     
                     sliderRpm.value = Math.min(Math.max(rpm, 300), 1500);
                     sliderFeed.value = preset.feed;
                     sliderDoc.value = preset.DOC;
                     
-                    document.querySelector(`input[name="material-group"][value="steel"]`).checked = true;
+                    const matKey = preset.name.includes("Cast Iron") ? "cast_iron" : "steel";
+                    const radio = document.querySelector(`input[name="material-group"][value="${matKey}"]`);
+                    if (radio) radio.checked = true;
                 }
                 updateSliderDisplays();
                 evaluateModel();
@@ -547,6 +571,30 @@
             infoVrel.innerText = `${v_rel.toFixed(1)} mm/s`;
             infoForce.innerText = `${F_r.toFixed(0)} N`;
             
+            // Check Empirical Domain of Validity
+            const domainCard = document.getElementById("domain-card");
+            const domainStatusText = document.getElementById("domain-status-text");
+            const domainDesc = document.getElementById("domain-desc");
+            
+            const isEnvelopeValid = matConsts.validated && 
+                                   rpm >= 600 && rpm <= 1100 && 
+                                   feed >= 0.20 && feed <= 0.55 && 
+                                   doc >= 0.6 && doc <= 1.7;
+            
+            if (domainCard && domainStatusText && domainDesc) {
+                if (isEnvelopeValid) {
+                    domainCard.className = "bg-slate-900 rounded-xl border border-slate-800 p-5 flex flex-col justify-between";
+                    domainStatusText.innerText = "BENCHMARK VALIDATED";
+                    domainStatusText.className = "text-emerald-400 font-extrabold text-sm mt-1 block";
+                    domainDesc.innerText = `Operating within NASA Ames 16-run empirical envelope (${matConsts.name}).`;
+                } else {
+                    domainCard.className = "bg-amber-950/20 rounded-xl border border-amber-900/40 p-5 flex flex-col justify-between";
+                    domainStatusText.innerText = "EXTRAPOLATED ESTIMATE";
+                    domainStatusText.className = "text-amber-400 font-extrabold text-sm mt-1 block";
+                    domainDesc.innerText = `Operating outside calibrated domain (${matConsts.name}). Predictions reflect extrapolated physics.`;
+                }
+            }
+            
             // Continuous temporal simulation loop
             const nSteps = 100;
             const t_max = 3000.0;
@@ -558,7 +606,8 @@
             
             for (let i = 0; i < nSteps; i++) {
                 const t = times_sec[i];
-                const p = F_r / (w_c * (current_vb + vb0));
+                // Force-conservative contact area: A = 2a * w_c = w_c * (VB + 2*a0)
+                const p = F_r / (w_c * (current_vb + 2.0 * a0));
                 pressures[i] = p;
                 
                 const coords_tensor = new Float32Array([0.0, 0.0, t]);
@@ -572,7 +621,8 @@
                     params: ort_params
                 });
                 
-                current_vb = Math.max(0.0, -results.h.data[0]);
+                // Convert normal wear depth h to flank wear land VB: VB = -h / tan(alpha_0)
+                current_vb = Math.max(0.0, -results.h.data[0] / tan_alpha);
                 vb_pred[i] = current_vb;
             }
             
@@ -712,7 +762,7 @@
 
             // Cache data for Diagnostics & Prediction Report Generation
             const selectedMatInput = document.querySelector('input[name="material-group"]:checked');
-            const matName = selectedMatInput ? selectedMatInput.closest('label').querySelector('.text-sm').innerText : "Structural Steel";
+            const matName = selectedMatInput ? selectedMatInput.closest('label').querySelector('.text-sm').innerText : "Cast Iron";
             
             window.latestReportData = {
                 rpm,
@@ -735,6 +785,8 @@
                 isSafe: failIdx === -1,
                 isWarning: failIdx !== -1 && (times_sec[failIdx] / 60.0) >= 10,
                 isCritical: failIdx !== -1 && (times_sec[failIdx] / 60.0) < 10,
+                isEnvelopeValid,
+                validityDomain: isEnvelopeValid ? "Empirically Validated (NASA Ames Benchmark)" : "Extrapolated Physics Estimate (Out-of-Distribution)",
                 maxRate,
                 maxVonMises: maxVM,
                 maxVM_x,

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from typing import Tuple
 
 def compute_stresses(Phi: torch.Tensor, x: torch.Tensor, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -147,3 +148,43 @@ def compute_von_mises_stress(sigma_xx: torch.Tensor, sigma_yy: torch.Tensor, tau
     )
     # Ensure numerical stability using clamp/eps before sqrt
     return torch.sqrt(torch.clamp(vm_sq, min=1e-12))
+
+
+def compute_hertz_contact_profile(x: np.ndarray, Fr: float, vb: float, w_c: float = 1.0, a0: float = 0.05) -> Tuple[np.ndarray, float, float]:
+    r"""
+    Computes mathematically exact force-conservative Hertzian pressure profile.
+    
+    Hertz contact half-width:
+      a = (vb / 2.0) + a0  => 2a = vb + 2*a0
+    Contact strip area:
+      A = 2a * w_c = w_c * (vb + 2*a0)
+    Average pressure:
+      p_avg = Fr / A
+    Peak Hertzian pressure:
+      p_peak = (4.0 / pi) * p_avg
+      
+    Integral verification:
+      \int_{-a}^a p_peak * sqrt(1 - (x/a)^2) * w_c dx = p_peak * (pi*a / 2) * w_c
+                                                      = (4/pi * p_avg) * (pi*a / 2) * w_c
+                                                      = 2a * w_c * p_avg = Fr identically.
+    """
+    a = (vb / 2.0) + a0
+    area = 2.0 * a * w_c
+    p_avg = Fr / area
+    p_peak = (4.0 / np.pi) * p_avg
+    
+    val = np.maximum(0.0, 1.0 - (x / a)**2)
+    p_profile = p_peak * np.sqrt(val)
+    return p_profile, a, p_peak
+
+
+def verify_force_conservation(x_grid: np.ndarray, p_profile: np.ndarray, w_c: float, Fr: float) -> float:
+    r"""
+    Computes relative force conservation error:
+      epsilon_F = |\int_A p(x) dA - Fr| / Fr
+    Using trapezoidal numerical quadrature across contact zone.
+    """
+    quad_fn = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
+    F_recovered = float(quad_fn(p_profile.flatten(), x_grid.flatten()) * w_c)
+    eps_F = abs(F_recovered - Fr) / (Fr + 1.0e-8)
+    return eps_F

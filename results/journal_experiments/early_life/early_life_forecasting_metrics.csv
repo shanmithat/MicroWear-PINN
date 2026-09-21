@@ -1,0 +1,2 @@
+Case_ID,Train_Cuts,Forecast_Cuts,Split_Time_min,Future_MAE_mm,Future_RMSE_mm,True_RUL_min,Predicted_RUL_min,RUL_Error_min
+1,5,9,19.2,0.2806,0.3145,32.0,44.0,12.0

@@ -17,12 +17,15 @@ class SoftAdapt:
     """
     SoftAdapt adaptive loss weighting algorithm.
     Adjusts loss weights dynamically based on the rate of convergence of each loss component.
+    Positive beta (e.g. +0.1) increases weight for slower-converging / lagging loss components.
+    Modulates configured base weights to preserve relative importance across physics objectives.
     """
-    def __init__(self, num_losses: int, beta: float = -0.1):
+    def __init__(self, num_losses: int, beta: float = 0.1, base_weights: Optional[torch.Tensor] = None):
         self.num_losses = num_losses
         self.beta = beta
         self.prev_losses = None
-        self.weights = torch.ones(num_losses, dtype=torch.float32)
+        self.base_weights = base_weights if base_weights is not None else torch.ones(num_losses, dtype=torch.float32)
+        self.weights = self.base_weights.clone()
 
     def update(self, current_losses: List[float]) -> torch.Tensor:
         curr = torch.tensor(current_losses, dtype=torch.float32)
@@ -37,9 +40,12 @@ class SoftAdapt:
         # Shift rates of change by mean for numerical stability in softmax
         d_shifted = d - torch.mean(d)
         
-        # Softmax over beta * shifted_rates
+        # Softmax over beta * shifted_rates (positive beta boosts lagging losses)
         exp_d = torch.exp(self.beta * d_shifted)
-        self.weights = (exp_d / torch.sum(exp_d)) * self.num_losses
+        adaptive_multiplier = exp_d / torch.mean(exp_d)
+        
+        # Modulate base weights instead of wiping initial relative weight magnitudes
+        self.weights = self.base_weights * adaptive_multiplier
         
         # Keep track of current losses
         self.prev_losses = curr
@@ -110,27 +116,23 @@ class PINNTrainer:
             'init': lw.get('init', 1.0),
             'data': lw['data']
         }
+        base_w = torch.tensor([
+            self.fixed_weights['wear'],
+            self.fixed_weights['biharmonic'],
+            self.fixed_weights['bc'],
+            self.fixed_weights['init'],
+            self.fixed_weights['data']
+        ], dtype=torch.float32)
         
         # Adaptive weighting (SoftAdapt)
         self.adaptive_cfg = config['training']['adaptive_weighting']
         if self.adaptive_cfg['enabled']:
-            self.softadapt = SoftAdapt(num_losses=5, beta=self.adaptive_cfg['beta'])
-            self.loss_weights = torch.tensor([
-                self.fixed_weights['wear'],
-                self.fixed_weights['biharmonic'],
-                self.fixed_weights['bc'],
-                self.fixed_weights['init'],
-                self.fixed_weights['data']
-            ], dtype=torch.float32, device=self.device)
+            beta = float(self.adaptive_cfg.get('beta', 0.1))
+            self.softadapt = SoftAdapt(num_losses=5, beta=beta, base_weights=base_w)
+            self.loss_weights = base_w.clone().to(self.device)
         else:
             self.softadapt = None
-            self.loss_weights = torch.tensor([
-                self.fixed_weights['wear'],
-                self.fixed_weights['biharmonic'],
-                self.fixed_weights['bc'],
-                self.fixed_weights['init'],
-                self.fixed_weights['data']
-            ], dtype=torch.float32, device=self.device)
+            self.loss_weights = base_w.clone().to(self.device)
             
         # Placeholders for data/profilometry points
         self.x_data: Optional[torch.Tensor] = None
@@ -223,10 +225,16 @@ class PINNTrainer:
             Phi_surf = self.model.predict_phi(x_surf, y_surf, t_surf, p_surf, v_rel_surf)
             sigma_xx_surf, sigma_yy_surf, tau_xy_surf = compute_stresses(Phi_surf, x_surf, y_surf)
             
-            # Hertzian pressure profile distributed across contact length a(t) = VB(t)/2 + 0.05
+            # Force-conservative Hertzian pressure profile across contact width 2a(t) = VB(t) + 2*a0
+            a0 = float(self.case_data.get('a0', 0.05))
+            w_c = float(self.case_data.get('w_c', 1.0))
             vbs_np = self.case_data['interp_vb'](t_surf_np)
-            a_np = vbs_np / 2.0 + 0.05
-            p_peak_np = (4.0 / np.pi) * p_surf_val
+            a_np = (vbs_np / 2.0) + a0
+            area_np = w_c * (vbs_np + 2.0 * a0)
+            
+            forces_surf_np = self.case_data['interp_force'](t_surf_np)
+            p_avg_np = forces_surf_np / area_np
+            p_peak_np = (4.0 / np.pi) * p_avg_np
             x_np = x_surf.cpu().detach().numpy()
             
             val_np = np.maximum(0.0, 1.0 - (x_np / a_np)**2)
@@ -257,6 +265,12 @@ class PINNTrainer:
             residual_wear = compute_wear_residual(h_surf, t_surf, k_w_surf, p_ext, v_rel_surf)
             loss_wear = torch.mean(torch.square(residual_wear))
             
+            # Smoothness regularization for spatial kw(x) to ensure identifiability
+            if self.model.kw_mode == 'spatial':
+                ones_kw = torch.ones_like(k_w_surf)
+                dkw_dx = torch.autograd.grad(k_w_surf, x_surf, grad_outputs=ones_kw, create_graph=True, retain_graph=True)[0]
+                loss_wear = loss_wear + 1.0e-3 * torch.mean(torch.square(dkw_dx))
+            
             # 4. Initial Condition (IC) losses at t=0
             p_init_val = self.nasa_loader.sample_operational_pressure(self.case_data, np.zeros((1, 1)))[0, 0]
             p_init = torch.ones_like(x_init) * float(p_init_val)
@@ -265,7 +279,8 @@ class PINNTrainer:
             h_init = self.model.predict_h(x_init, t_init, p_init, v_rel_init)
             loss_init = torch.mean(torch.square(h_init)) # Initial wear depth is zero
             
-            # 5. Sparse Data Observation loss (Flank Wear VB calibration)
+            # 5. Sparse Data Observation loss (Flank Wear Land VB vs. Wear Depth h)
+            # Physical cutting tool relation: h_depth = VB * tan(alpha_0)
             t_d_np = self.case_data['t_data'][:, None]
             x_d_np = np.zeros_like(t_d_np) # Evaluated at the tool cutting edge x=0
             vb_d_np = self.case_data['vb_data'][:, None]
@@ -279,8 +294,10 @@ class PINNTrainer:
             v_rel_data = torch.ones_like(t_data) * self.case_data['v_rel']
             
             h_pred_data = self.model.predict_h(x_data, t_data, p_data, v_rel_data)
-            # h = -VB, so h_pred_data should match -vb_data
-            loss_data = torch.mean(torch.square(h_pred_data + vb_data))
+            
+            # Surface profile height h = -h_depth = -VB * tan(alpha_0)
+            h_target = -self.model.vb_to_wear_depth(vb_data)
+            loss_data = torch.mean(torch.square(h_pred_data - h_target))
             
         else:
             # --- SYNTHETIC BENCHMARK CASE ---
@@ -458,7 +475,8 @@ class PINNTrainer:
                 self.model.parameters(),
                 lr=self.config['training']['lr_lbfgs'],
                 max_iter=1,  # one step per loop
-                history_size=50,
+                max_eval=4,  # limit line search evaluations per step
+                history_size=20,
                 line_search_fn="strong_wolfe"
             )
             
@@ -500,3 +518,118 @@ class PINNTrainer:
             print(f"L-BFGS optimization finished in {time.time() - t0:.2f} seconds.")
             
         return self.history
+
+    def evaluate_case(self, case_data: dict, leak_free: bool = True, wear_threshold: float = 0.30) -> dict:
+        """
+        Evaluates model performance on a NASA Case.
+        
+        Args:
+            case_data: Data dictionary for the target case.
+            leak_free: If True, recursively integrates wear or uses decoupled contact pressure
+                       to prevent ground-truth VB leakage.
+            wear_threshold: Tool failure flank wear limit (mm) for RUL calculation.
+            
+        Returns:
+            Dictionary containing predicted wear, metrics (MAE, RMSE, R2, RUL error),
+            and force conservation error epsilon_F.
+        """
+        self.model.eval()
+        t_data_np = case_data['t_data']
+        vb_true = case_data['vb_data']
+        
+        t_sec_torch = torch.tensor(t_data_np[:, None], dtype=torch.float32, device=self.device)
+        x_zero_torch = torch.zeros_like(t_sec_torch)
+        v_rel_torch = torch.ones_like(t_sec_torch) * case_data['v_rel']
+        
+        if leak_free:
+            # Sequential leak-free simulation: update contact pressure recursively from prior predicted wear
+            n_pts = len(t_data_np)
+            vb_pred = np.zeros(n_pts)
+            curr_vb = 0.0
+            a0 = float(case_data.get('a0', 0.05))
+            w_c = float(case_data.get('w_c', 1.0))
+            
+            for i in range(n_pts):
+                t_val = t_data_np[i]
+                Fr_val = float(case_data['interp_force'](t_val))
+                area_val = w_c * (curr_vb + 2.0 * a0)
+                p_val = Fr_val / area_val
+                
+                t_t = torch.tensor([[t_val]], dtype=torch.float32, device=self.device)
+                x_t = torch.zeros((1, 1), dtype=torch.float32, device=self.device)
+                p_t = torch.tensor([[p_val]], dtype=torch.float32, device=self.device)
+                v_t = torch.tensor([[case_data['v_rel']]], dtype=torch.float32, device=self.device)
+                
+                with torch.no_grad():
+                    h_pred_val = self.model.predict_h(x_t, t_t, p_t, v_t)
+                    vb_val = float(self.model.wear_depth_to_vb(h_pred_val).item())
+                    curr_vb = max(0.0, vb_val)
+                    vb_pred[i] = curr_vb
+        else:
+            # Inverse calibration mode: evaluate directly using case operational pressure
+            p_data_val = self.nasa_loader.sample_operational_pressure(case_data, t_data_np[:, None])
+            p_data_torch = torch.tensor(p_data_val, dtype=torch.float32, device=self.device)
+            with torch.no_grad():
+                h_pred = self.model.predict_h(x_zero_torch, t_sec_torch, p_data_torch, v_rel_torch)
+                vb_pred = self.model.wear_depth_to_vb(h_pred).cpu().numpy().flatten()
+                vb_pred = np.maximum(0.0, vb_pred)
+                
+        # Compute quantitative error metrics
+        # Exclude t=0 point for relative percentage metrics
+        valid_mask = t_data_np > 0
+        if np.sum(valid_mask) > 0:
+            mae = float(np.mean(np.abs(vb_pred[valid_mask] - vb_true[valid_mask])))
+            rmse = float(np.sqrt(np.mean((vb_pred[valid_mask] - vb_true[valid_mask]) ** 2)))
+            ss_tot = np.sum((vb_true[valid_mask] - np.mean(vb_true[valid_mask])) ** 2)
+            ss_res = np.sum((vb_true[valid_mask] - vb_pred[valid_mask]) ** 2)
+            r2 = float(1.0 - (ss_res / (ss_tot + 1e-8)))
+        else:
+            mae, rmse, r2 = 0.0, 0.0, 1.0
+            
+        # RUL estimation
+        true_fail_idx = np.where(vb_true >= wear_threshold)[0]
+        pred_fail_idx = np.where(vb_pred >= wear_threshold)[0]
+        
+        t_fail_true = t_data_np[true_fail_idx[0]] if len(true_fail_idx) > 0 else case_data['T_max']
+        t_fail_pred = t_data_np[pred_fail_idx[0]] if len(pred_fail_idx) > 0 else case_data['T_max']
+        rul_error_min = abs(t_fail_pred - t_fail_true) / 60.0
+        
+        # Verify force conservation epsilon_F at final timestamp
+        a0 = float(case_data.get('a0', 0.05))
+        w_c = float(case_data.get('w_c', 1.0))
+        final_t = case_data['T_max']
+        final_vb = vb_pred[-1]
+        a_final = (final_vb / 2.0) + a0
+        area_final = w_c * (final_vb + 2.0 * a0)
+        Fr_final = float(case_data['interp_force'](final_t))
+        p_avg_final = Fr_final / area_final
+        p_peak_final = (4.0 / np.pi) * p_avg_final
+        
+        x_eval = np.linspace(-a_final, a_final, 500)
+        p_eval = p_peak_final * np.sqrt(np.maximum(0.0, 1.0 - (x_eval / a_final)**2))
+        quad_fn = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
+        F_rec = quad_fn(p_eval, x_eval) * w_c
+        eps_F = float(abs(F_rec - Fr_final) / (Fr_final + 1e-8))
+        
+        # Extract mean identified wear coefficient kw
+        with torch.no_grad():
+            kw_eval = self.model.predict_k_w(torch.zeros((1, 1), device=self.device)).item()
+            
+        return {
+            'case_id': case_data['case_id'],
+            'material': case_data['material'],
+            'DOC': case_data['DOC'],
+            'feed': case_data['feed'],
+            't_data': t_data_np,
+            'vb_true': vb_true,
+            'vb_pred': vb_pred,
+            'mae': mae,
+            'rmse': rmse,
+            'r2': r2,
+            'rul_error_min': rul_error_min,
+            't_fail_true_min': t_fail_true / 60.0,
+            't_fail_pred_min': t_fail_pred / 60.0,
+            'eps_F': eps_F,
+            'kw_identified': kw_eval
+        }
+

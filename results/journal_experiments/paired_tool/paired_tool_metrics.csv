@@ -1,0 +1,4 @@
+Train_Tool,Test_Tool,Condition,Material,Test_MAE_mm,Test_RMSE_mm,Test_R2,RUL_Error_min,Force_Conservation_eps_F,Identified_kw
+Case 1,Case 9,"Cast Iron (DOC 1.5mm, Feed 0.5mm/rev)",Cast Iron,0.234,0.3194,-0.6115,0.0,9.50e-05,1.783e-07
+Case 3,Case 11,"Cast Iron (DOC 0.75mm, Feed 0.25mm/rev)",Cast Iron,0.2561,0.3113,-0.8734,54.0,9.50e-05,1.784e-07
+Case 7,Case 13,"Steel (DOC 0.75mm, Feed 0.25mm/rev)",Steel,0.5678,0.749,-1.9196,9.0,9.50e-05,1.782e-07

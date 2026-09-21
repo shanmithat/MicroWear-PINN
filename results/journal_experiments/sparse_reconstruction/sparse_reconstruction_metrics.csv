@@ -1,0 +1,4 @@
+Mask_Ratio,Points_Kept,Points_Masked,Linear_MAE_mm,Linear_RMSE_mm,Poly_MAE_mm,Poly_RMSE_mm,PINN_MAE_mm,PINN_RMSE_mm,Error_Reduction_Pct
+75% Masked (25% Kept),4,10,0.0292,0.0343,0.028,0.0343,0.2723,0.3721,-832.5
+50% Masked (50% Kept),7,7,0.0253,0.0301,0.029,0.034,0.1938,0.2151,-666.7
+25% Masked (75% Kept),11,3,0.0294,0.0312,0.0293,0.0354,0.251,0.3092,-754.9

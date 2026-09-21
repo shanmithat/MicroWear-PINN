@@ -200,8 +200,8 @@ def run_tests():
     print("Executing unit tests...")
     try:
         import pytest
-        test_file = os.path.join("microwear_pinn", "tests", "test_residuals.py")
-        exit_code = pytest.main([test_file, "-v"])
+        test_path = os.path.join("microwear_pinn", "tests")
+        exit_code = pytest.main([test_path, "-v"])
         return exit_code
     except ImportError:
         print("pytest is not installed. Running test functions directly...")
@@ -209,6 +209,12 @@ def run_tests():
             from microwear_pinn.tests.test_residuals import (
                 test_autograd_vs_analytical_stresses,
                 test_biharmonic_residual
+            )
+            from microwear_pinn.tests.test_nasa_pipeline import (
+                test_contact_force_conservation,
+                test_wear_coefficient_positivity,
+                test_clearance_angle_conversion,
+                test_nasa_milling_loader_replicate_structure
             )
             
             print("Running test_autograd_vs_analytical_stresses...")
@@ -218,8 +224,24 @@ def run_tests():
             print("Running test_biharmonic_residual...")
             test_biharmonic_residual()
             print("PASSED: test_biharmonic_residual")
+
+            print("Running test_contact_force_conservation (epsilon_F < 1e-4)...")
+            test_contact_force_conservation()
+            print("PASSED: test_contact_force_conservation")
+
+            print("Running test_wear_coefficient_positivity (kw > 0)...")
+            test_wear_coefficient_positivity()
+            print("PASSED: test_wear_coefficient_positivity")
+
+            print("Running test_clearance_angle_conversion (VB <-> h)...")
+            test_clearance_angle_conversion()
+            print("PASSED: test_clearance_angle_conversion")
+
+            print("Running test_nasa_milling_loader_replicate_structure...")
+            test_nasa_milling_loader_replicate_structure()
+            print("PASSED: test_nasa_milling_loader_replicate_structure")
             
-            print("All tests passed successfully!")
+            print("\nALL VERIFICATION TESTS PASSED SUCCESSFULLY!")
             return 0
         except Exception as e:
             import traceback
@@ -267,6 +289,18 @@ if __name__ == "__main__":
     eval_parser.add_argument("--save-dir", type=str, default="eval_results", 
                              help="Directory to save evaluation plots")
                              
+    # Subparser for Journal Benchmark Experiments
+    exp_parser = subparsers.add_parser("run-experiments", help="Run publication benchmark suite (Paired-Tool, Sparse Reconstruction, Forecasting, Ablations)")
+    exp_parser.add_argument("--mode", type=str, default="all", 
+                             choices=["paired-tool", "sparse-reconstruction", "early-life", "ablations", "all"],
+                             help="Benchmark mode to execute")
+    exp_parser.add_argument("--config", type=str, default="microwear_pinn/configs/nasa_config.yaml", 
+                             help="Path to configuration file")
+    exp_parser.add_argument("--case-id", type=int, default=1, 
+                             help="NASA Case ID for single-case experiments")
+    exp_parser.add_argument("--output-dir", type=str, default="results/journal_experiments", 
+                             help="Root directory for saving experimental results")
+
     # Subparser for Test
     test_parser = subparsers.add_parser("test", help="Run residual autograd verification tests")
     
@@ -284,6 +318,22 @@ if __name__ == "__main__":
     elif args.command == "evaluate":
         cfg = load_config(args.config)
         run_evaluation(cfg, args.checkpoint, args.save_dir)
+    elif args.command == "run-experiments":
+        from microwear_pinn.src.experiments import (
+            run_paired_tool_experiment,
+            run_sparse_reconstruction_experiment,
+            run_early_life_forecasting,
+            run_ablation_study
+        )
+        if args.mode in ["paired-tool", "all"]:
+            run_paired_tool_experiment(args.config, os.path.join(args.output_dir, "paired_tool"))
+        if args.mode in ["sparse-reconstruction", "all"]:
+            run_sparse_reconstruction_experiment(args.config, args.case_id, os.path.join(args.output_dir, "sparse_reconstruction"))
+        if args.mode in ["early-life", "all"]:
+            run_early_life_forecasting(args.config, args.case_id, 0.40, os.path.join(args.output_dir, "early_life"))
+        if args.mode in ["ablations", "all"]:
+            run_ablation_study(args.config, args.case_id, os.path.join(args.output_dir, "ablations"))
+        print(f"\nAll journal experiments completed successfully! Results in: {args.output_dir}")
     elif args.command == "test":
         sys.exit(run_tests())
     else:

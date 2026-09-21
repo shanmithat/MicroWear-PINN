@@ -1,4 +1,11 @@
 import os
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -65,21 +72,39 @@ def export_and_validate(config: dict, checkpoint_path: str, onnx_path: str) -> b
     dummy_params = torch.zeros((1, 2), dtype=torch.float32)
     
     print(f"Exporting model to ONNX at: {onnx_path}...")
-    torch.onnx.export(
-        wrapper,
-        (dummy_coords, dummy_params),
-        onnx_path,
-        input_names=["coords", "params"],
-        output_names=["h", "phi", "k_w"],
-        dynamic_axes={
-            "coords": {0: "batch_size"},
-            "params": {0: "batch_size"},
-            "h": {0: "batch_size"},
-            "phi": {0: "batch_size"},
-            "k_w": {0: "batch_size"}
-        },
-        opset_version=15
-    )
+    try:
+        torch.onnx.export(
+            wrapper,
+            (dummy_coords, dummy_params),
+            onnx_path,
+            input_names=["coords", "params"],
+            output_names=["h", "phi", "k_w"],
+            dynamic_axes={
+                "coords": {0: "batch_size"},
+                "params": {0: "batch_size"},
+                "h": {0: "batch_size"},
+                "phi": {0: "batch_size"},
+                "k_w": {0: "batch_size"}
+            },
+            opset_version=17,
+            dynamo=False
+        )
+    except TypeError:
+        torch.onnx.export(
+            wrapper,
+            (dummy_coords, dummy_params),
+            onnx_path,
+            input_names=["coords", "params"],
+            output_names=["h", "phi", "k_w"],
+            dynamic_axes={
+                "coords": {0: "batch_size"},
+                "params": {0: "batch_size"},
+                "h": {0: "batch_size"},
+                "phi": {0: "batch_size"},
+                "k_w": {0: "batch_size"}
+            },
+            opset_version=17
+        )
     print("ONNX model exported successfully.")
     
     # Inline any external weights to ensure it's fully self-contained for browser execution

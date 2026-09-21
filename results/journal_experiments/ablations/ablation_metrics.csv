@@ -1,0 +1,6 @@
+Model_Variant,Final_Loss,MAE_mm,RMSE_mm,R2,RUL_Error_min,Force_Conservation_eps_F
+Full MicroWear-PINN,4.6054e+06,0.2318,0.2608,-2.4713,3.0,9.50e-05
+No Airy Stress Mechanics,9.5032e-01,0.2019,0.2526,-2.2562,30.0,9.50e-05
+No Random Fourier Features,6.9441e+05,0.3084,0.3387,-4.8545,16.0,9.50e-05
+No SoftAdapt (Fixed Weights),7.7590e+06,0.1014,0.1477,-0.1126,13.0,9.50e-05
+Spatial kw(x) (Unconstrained),2.0602e+10,33.0823,47.0363,-112890.8197,17.0,9.50e-05

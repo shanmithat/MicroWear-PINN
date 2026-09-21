@@ -290,7 +290,9 @@ def plot_nasa_calibration(model: MicroWearPINN, config: dict, case_data: dict, l
     with torch.no_grad():
         h_pred = model.predict_h(x_zero_torch, t_grid_torch, p_grid, v_rel_grid).cpu().numpy()
         
-    vb_pred = -h_pred
+    # Convert surface profile height h to flank wear land VB: VB = -h / tan(alpha_0)
+    vb_pred = -h_pred / getattr(model, 'tan_alpha', 1.0)
+    vb_pred = np.maximum(0.0, vb_pred)
     
     plt.figure(figsize=(7, 4.5))
     plt.plot(t_grid_sec / 60.0, vb_pred, label="Calibrated PINN $VB(t)$", color='red', linewidth=2.5)

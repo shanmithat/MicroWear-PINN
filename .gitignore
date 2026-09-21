@@ -8,7 +8,10 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Local results and outputs
-results/
+*.pt
+results/*.pt
+!results/journal_experiments/
+!results/*.png
 eval_results/
 
 # OS-specific files
