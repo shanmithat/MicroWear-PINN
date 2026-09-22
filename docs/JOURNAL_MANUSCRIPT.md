@@ -406,6 +406,17 @@ For each cutting run, high-frequency signals sampled at $250\text{ Hz}$ across 9
 
 Time-series features were extracted per cut: root-mean-square ($I_{\text{AC, RMS}}$), mean DC current, vibration RMS, and acoustic emission energy.
 
+```
+Figure 3: Multi-sensor experimental telemetry from the NASA milling benchmark across machining life (Case 1).
+(a) Dynamometer cutting force Fr(t) and spindle drive motor AC current RMS.
+(b) Accelerometer table and spindle vibration RMS signals.
+(c) High-frequency table and spindle Acoustic Emission (AE) RMS signals.
+(d) Measured flank wear land VB(t) growth and ground-truth interpolation.
+```
+
+![Multi-Sensor Milling Signals](C:\Users\shanm\.gemini\antigravity\brain\c7fa057e-3d5b-49ad-9336-84f9ebb1d071\nasa_sensor_signals_overview.png)
+*Figure 3: Multi-sensor telemetry evolution across tool life (NASA Case 1: Cast Iron, DOC 1.5 mm, Feed 0.5 mm/rev).*
+
 ### 5.3 Calibrated Specific Cutting Force Model
 Because dynamometer force signals were not continuously available across all runs, the physical resultant cutting force $F_r(t)$ was derived using the calibrated specific cutting force $K_{s0}$ ($1300\text{ N/mm}^2$ for Cast Iron and $2100\text{ N/mm}^2$ for Steel) scaled by operational depth of cut, feed per revolution, and spindle AC current dynamics:
 $$F_r(t) = K_{s0} \cdot a_p \cdot f_z \cdot \left(\frac{I_{\text{AC}}(t)}{I_{\text{AC, base}}}\right)$$
@@ -473,6 +484,9 @@ Figure 5: Paired-Tool Replicate Cross-Validation degradation curves.
 ![Cross Tool 7 to 13](C:\Users\shanm\.gemini\antigravity\brain\c7fa057e-3d5b-49ad-9336-84f9ebb1d071\cross_tool_7_to_13.png)
 *Figure 5(c): Cross-tool prediction on unseen replicate Tool 2 (Case 13) in J45 Steel using model trained on Tool 1 (Case 7).*
 
+![Cross Tool Parity Summary](C:\Users\shanm\.gemini\antigravity\brain\c7fa057e-3d5b-49ad-9336-84f9ebb1d071\cross_tool_parity_summary.png)
+*Figure 5(d): Multi-replicate generalization benchmark summary. (a) Parity plot with ±15% error bounds across all cases. (b) Trajectory overlays to failure. (c) Quantitative MAE and RUL prediction error across material and cutting regimes.*
+
 **Discussion of Results**:
 In all cases, the predicted wear trajectory tracked the ground-truth wear progression of the unseen insert with $R^2 > 0.94$ and RUL prediction error under $2.0\text{ minutes}$. Because contact pressure was updated autonomously, the model proved that Archard's wear kinetics and Hertzian elasticity learned from one insert accurately predict the failure timestamp of an independent insert.
 
@@ -507,6 +521,9 @@ Figure 6: Sparse-label reconstruction trajectories across withholding regimes.
 
 ![Sparse Mask 25%](C:\Users\shanm\.gemini\antigravity\brain\c7fa057e-3d5b-49ad-9336-84f9ebb1d071\sparse_reconstruction_mask_25pct.png)
 *Figure 6(c): Trajectory reconstruction under 25% label masking.*
+
+![Sparse Benchmark Summary](C:\Users\shanm\.gemini\antigravity\brain\c7fa057e-3d5b-49ad-9336-84f9ebb1d071\sparse_benchmark_summary.png)
+*Figure 6(d): Quantitative sparse reconstruction benchmark summary. (a) Absolute MAE on unseen withheld inspection points across masking regimes. (b) Relative error reduction achieved by MicroWear-PINN compared to standard numerical baselines.*
 
 **Analysis**:
 When 75% of labels were withheld (leaving only 4 inspection points across a 40-minute cut), polynomial fits suffered from Runge's phenomenon, exhibiting unphysical inflection dips. In contrast, MicroWear-PINN reduced reconstruction MAE by **61.8%** relative to linear interpolation because the Archard kinematic wear rate $\partial h / \partial t = -k_w p v$ and biharmonic stress constraints regularized the trajectory curvature, enforcing monotonic degradation.
@@ -555,10 +572,29 @@ Table 5: Quantitative ablation study results on NASA Case 1.
 3. **Loss Balancing**: Fixing loss weights statically (Variant 4) caused the biharmonic PDE gradients to overpower the wear data loss, leading to severe test error ($R^2 = 0.841$).
 4. **Failure of Unconstrained Spatial $k_w(x)$**: Variant 5 suffered catastrophic loss explosion ($2.06 \times 10^{10}$), empirically proving our mathematical assertion that estimating a spatial field $k_w(x)$ from single-point scalar wear land measurements is unidentifiable and unstable.
 
+```
+Figure 8: Quantitative architectural and physical ablation matrix comparison.
+(a) Flank wear prediction MAE and RMSE across model variants.
+(b) Coefficient of determination R² showing degradation when physics constraints are eliminated.
+(c) End-of-life Remaining Useful Life (RUL) forecasting error relative to the industrial 2.0-minute tolerance threshold.
+```
+
+![Ablation Comparison](C:\Users\shanm\.gemini\antigravity\brain\c7fa057e-3d5b-49ad-9336-84f9ebb1d071\ablation_comparison.png)
+*Figure 8: Multi-metric performance comparison across five architectural and physics ablation variants.*
+
 ---
 
 ### 6.6 Subsurface Stress Concentrations
-As illustrated in **Figure 4(d)**, the calibrated Airy potential reveals significant shear stress concentrations ($\tau_{xy} > 800\text{ MPa}$) and Von Mises equivalent stress peaks ($\sigma_{\text{vM}} > 1.85\text{ GPa}$) located approximately $0.08\text{ mm}$ directly beneath the cutting edge hone ($x \approx 0, y \approx -0.08\text{ mm}$). This depth corresponds closely to the physical plastic deformation zone and micro-chipping depth observed in metallographic cross-sections of worn WC-Co inserts [4, 7].
+As illustrated in **Figure 4(d)** and **Figure 9**, the calibrated Airy potential reveals significant shear stress concentrations ($\tau_{xy} > 800\text{ MPa}$) and Von Mises equivalent stress peaks ($\sigma_{\text{vM}} > 1.85\text{ GPa}$) located approximately $0.08 - 0.12\text{ mm}$ directly beneath the cutting edge hone ($x \approx 0, y \approx -0.12\text{ mm}$). This depth corresponds closely to the physical plastic deformation zone and micro-chipping depth observed in metallographic cross-sections of worn WC-Co inserts [4, 7].
+
+```
+Figure 9: Subsurface stress tensor depth profiles beneath the tool cutting edge (x=0).
+(a) Lateral normal stress σxx, compressive contact normal stress σyy, and maximum shear stress τmax as a function of depth y beneath the cutting surface.
+(b) Equivalent Von Mises stress profile illustrating the peak plastic deformation zone at y ≈ -0.12 mm relative to the WC-Co substrate yield strength (1.85 GPa).
+```
+
+![Subsurface Stress Depth Profiles](C:\Users\shanm\.gemini\antigravity\brain\c7fa057e-3d5b-49ad-9336-84f9ebb1d071\subsurface_stress_depth_profiles.png)
+*Figure 9: Depth profile of 2D subsurface stress components and equivalent Von Mises plastic stress field beneath the cutting edge ($x = 0$).*
 
 ### 6.7 Embedded ONNX WebAssembly Parity & Inference Latency
 Numerical validation between the PyTorch master model and the compiled ONNX Runtime Web model confirms complete fidelity:

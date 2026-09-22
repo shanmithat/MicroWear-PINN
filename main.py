@@ -301,6 +301,11 @@ if __name__ == "__main__":
     exp_parser.add_argument("--output-dir", type=str, default="results/journal_experiments", 
                              help="Root directory for saving experimental results")
 
+    # Subparser for Generating Publication Figures
+    fig_parser = subparsers.add_parser("generate-figures", help="Generate publication-grade journal figures for all experiments")
+    fig_parser.add_argument("--output-dir", type=str, default="results/journal_experiments",
+                            help="Directory where figures should be saved")
+
     # Subparser for Test
     test_parser = subparsers.add_parser("test", help="Run residual autograd verification tests")
     
@@ -333,8 +338,37 @@ if __name__ == "__main__":
             run_early_life_forecasting(args.config, args.case_id, 0.40, os.path.join(args.output_dir, "early_life"))
         if args.mode in ["ablations", "all"]:
             run_ablation_study(args.config, args.case_id, os.path.join(args.output_dir, "ablations"))
-        print(f"\nAll journal experiments completed successfully! Results in: {args.output_dir}")
+        
+        # Automatically generate composite journal figures
+        from microwear_pinn.src.generate_journal_figures import (
+            generate_ablation_figure,
+            generate_paired_tool_summary_figure,
+            generate_sparse_reconstruction_summary,
+            generate_sensor_signals_overview,
+            generate_subsurface_stress_depth_profiles
+        )
+        generate_ablation_figure()
+        generate_paired_tool_summary_figure()
+        generate_sparse_reconstruction_summary()
+        generate_sensor_signals_overview()
+        generate_subsurface_stress_depth_profiles()
+        print(f"\nAll journal experiments and publication figures completed successfully! Results in: {args.output_dir}")
+    elif args.command == "generate-figures":
+        from microwear_pinn.src.generate_journal_figures import (
+            generate_ablation_figure,
+            generate_paired_tool_summary_figure,
+            generate_sparse_reconstruction_summary,
+            generate_sensor_signals_overview,
+            generate_subsurface_stress_depth_profiles
+        )
+        generate_ablation_figure()
+        generate_paired_tool_summary_figure()
+        generate_sparse_reconstruction_summary()
+        generate_sensor_signals_overview()
+        generate_subsurface_stress_depth_profiles()
+        print("\nAll journal publication figures generated successfully!")
     elif args.command == "test":
         sys.exit(run_tests())
     else:
         parser.print_help()
+
